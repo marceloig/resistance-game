@@ -8,20 +8,29 @@ export const backend = defineBackend({
   data,
 });
 
+// Create AppSync Events API for real-time game communication
 const gameEventsApi = new CfnApi(backend.createStack('GameEventsStack'), 'GameEventsApi', {
-  name: 'game-events-api',
+  name: 'resistance-game-events-api',
   eventConfig: {
     authProviders: [{
-      authType: 'API_KEY'
+      authType: 'AWS_IAM'
     }],
     connectionAuthModes: [{
-      authType: 'API_KEY'
+      authType: 'AWS_IAM'
     }],
     defaultPublishAuthModes: [{
-      authType: 'API_KEY'
+      authType: 'AWS_IAM'
     }],
     defaultSubscribeAuthModes: [{
-      authType: 'API_KEY'
+      authType: 'AWS_IAM'
     }]
+  }
+});
+
+// Export the Events API endpoint for frontend use
+backend.addOutput({
+  custom: {
+    gameEventsApiEndpoint: gameEventsApi.attrApiId,
+    gameEventsApiUrl: `https://${gameEventsApi.attrApiId}.appsync-api.${backend.stack.region}.amazonaws.com/event`
   }
 });

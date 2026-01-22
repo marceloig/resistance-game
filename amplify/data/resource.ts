@@ -10,7 +10,10 @@ const schema = a.schema({
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
     })
-    .authorization((allow) => [allow.authenticated()]),
+    .authorization((allow) => [
+      allow.authenticated(),
+      allow.unauthenticated().to(['read', 'create', 'update'])
+    ]),
 
   Player: a
     .model({
@@ -23,7 +26,10 @@ const schema = a.schema({
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
     })
-    .authorization((allow) => [allow.authenticated()]),
+    .authorization((allow) => [
+      allow.authenticated(),
+      allow.unauthenticated().to(['read', 'create', 'update'])
+    ]),
 });
 
 export type Schema = ClientSchema<typeof schema>;
@@ -31,6 +37,10 @@ export type Schema = ClientSchema<typeof schema>;
 export const data = defineData({
   schema,
   authorizationModes: {
-    defaultAuthorizationMode: 'userPool',
+    defaultAuthorizationMode: 'identityPool',
+    identityPoolAuthorizationMode: {
+      authenticatedUserRole: 'ALLOW',
+      unauthenticatedUserRole: 'ALLOW'
+    }
   },
 });
