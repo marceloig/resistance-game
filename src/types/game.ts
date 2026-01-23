@@ -64,6 +64,7 @@ export interface GameState {
   selectedTeam: string[];
   votingInProgress: boolean;
   missionInProgress: boolean;
+  currentVotes: Record<string, boolean>; // Current voting state
 }
 
 // Event types for real-time communication

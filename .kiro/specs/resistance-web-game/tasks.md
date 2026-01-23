@@ -27,7 +27,7 @@ This implementation plan converts the Resistance Web Game design into discrete c
   - **Property 3: Room Joining Validation**
   - **Validates: Requirements 1.3, 1.4**
 
-- [ ] 3. Build room management system
+- [x] 3. Build room management system
   - Create HomePage component with room code generation
   - Implement "New Game" and "Join Game" functionality
   - Add room code validation and error handling
@@ -38,7 +38,7 @@ This implementation plan converts the Resistance Web Game design into discrete c
   - **Property 2: Room Creation Consistency**
   - **Validates: Requirements 1.2**
 
-- [ ] 4. Implement real-time event system
+- [x] 4. Implement real-time event system
   - Create EventManager component for AppSync Events integration
   - Implement connection, publishing, and subscription methods
   - Add automatic reconnection and error handling
@@ -49,7 +49,7 @@ This implementation plan converts the Resistance Web Game design into discrete c
   - **Property 4: Ready State Synchronization**
   - **Validates: Requirements 2.3, 2.5**
 
-- [ ] 5. Build player management system
+- [x] 5. Build player management system
   - Create PlayerManager component for registration and readiness
   - Implement name input and ready/not ready toggle functionality
   - Add player list display with real-time status updates
@@ -60,7 +60,7 @@ This implementation plan converts the Resistance Web Game design into discrete c
   - **Property 5: Game Start Conditions**
   - **Validates: Requirements 3.1**
 
-- [ ] 6. Implement role assignment system
+- [x] 6. Implement role assignment system
   - Create role assignment logic based on player count
   - Implement random role distribution algorithm
   - Add role assignment validation and testing
@@ -74,7 +74,7 @@ This implementation plan converts the Resistance Web Game design into discrete c
   - **Property 7: Role Assignment Randomness**
   - **Validates: Requirements 4.7**
 
-- [ ] 7. Create game board and visual interface
+- [x] 7. Create game board and visual interface
   - Build GameBoard component with oval table layout
   - Implement player positioning and role color coding
   - Add role visibility rules (spies see all, resistance see own)
@@ -85,7 +85,7 @@ This implementation plan converts the Resistance Web Game design into discrete c
   - **Property 8: Role Visibility Rules**
   - **Validates: Requirements 5.4, 5.5**
 
-- [ ] 8. Implement mission team building mechanics
+- [x] 8. Implement mission team building mechanics
   - Create MissionController component for team selection
   - Add player selection/deselection functionality
   - Implement mission team size validation
@@ -96,7 +96,7 @@ This implementation plan converts the Resistance Web Game design into discrete c
   - **Property 9: Mission Team Size Enforcement**
   - **Validates: Requirements 6.4, 6.5**
 
-- [ ] 9. Build team approval voting system
+- [x] 9. Build team approval voting system
   - Implement voting phase UI with Yes/No buttons
   - Add automatic leader vote assignment
   - Create vote counting and result display
@@ -107,10 +107,10 @@ This implementation plan converts the Resistance Web Game design into discrete c
   - **Property 10: Voting Majority Rules**
   - **Validates: Requirements 7.4, 7.5**
 
-- [ ] 10. Checkpoint - Ensure core game flow works
+- [x] 10. Checkpoint - Ensure core game flow works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 11. Implement mission execution system
+- [x] 11. Implement mission execution system
   - Create mission execution UI for selected players
   - Add Success/Fail button logic with role-based availability
   - Implement mission result calculation
@@ -121,11 +121,13 @@ This implementation plan converts the Resistance Web Game design into discrete c
   - **Property 11: Mission Execution Button Availability**
   - **Validates: Requirements 8.2, 8.3**
 
-- [ ]* 11.2 Write property test for mission scoring rules
+- [ ]11.2 Write property test for mission scoring rules
+
+
   - **Property 12: Mission Scoring Rules**
   - **Validates: Requirements 8.5, 8.6**
 
-- [ ] 12. Add game progression and leadership rotation
+- [x] 12. Add game progression and leadership rotation
   - Implement leadership rotation after missions
   - Add mission counter and progression tracking
   - Create game phase management

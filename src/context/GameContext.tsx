@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 import { GameState, GameEvent, Player, LogEntry, GamePhase, MissionResult } from '../types/game';
+import { validateMissionProgression } from '../utils/gameLogic';
 
 // Initial game state
 const initialGameState: GameState = {
@@ -15,6 +16,7 @@ const initialGameState: GameState = {
   selectedTeam: [],
   votingInProgress: false,
   missionInProgress: false,
+  currentVotes: {},
 };
 
 // Action types for the reducer
@@ -29,11 +31,15 @@ export type GameAction =
   | { type: 'SET_SELECTED_TEAM'; payload: string[] }
   | { type: 'SET_VOTING_IN_PROGRESS'; payload: boolean }
   | { type: 'SET_MISSION_IN_PROGRESS'; payload: boolean }
+  | { type: 'SET_VOTES'; payload: Record<string, boolean> }
+  | { type: 'ADD_VOTE'; payload: { playerId: string; vote: boolean } }
+  | { type: 'CLEAR_VOTES' }
   | { type: 'ADD_MISSION_RESULT'; payload: MissionResult }
   | { type: 'UPDATE_SCORES'; payload: { resistanceScore: number; spyScore: number } }
   | { type: 'ADD_LOG_ENTRY'; payload: LogEntry }
   | { type: 'RESET_GAME' }
-  | { type: 'HANDLE_EVENT'; payload: GameEvent };
+  | { type: 'HANDLE_EVENT'; payload: GameEvent }
+  | { type: 'SET_CURRENT_MISSION'; payload: number };
 
 // Game reducer function
 function gameReducer(state: GameState, action: GameAction): GameState {
@@ -88,11 +94,39 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SET_MISSION_IN_PROGRESS':
       return { ...state, missionInProgress: action.payload };
     
+    case 'SET_VOTES':
+      return { ...state, currentVotes: action.payload };
+    
+    case 'ADD_VOTE':
+      return {
+        ...state,
+        currentVotes: {
+          ...state.currentVotes,
+          [action.payload.playerId]: action.payload.vote,
+        },
+      };
+    
+    case 'CLEAR_VOTES':
+      return { ...state, currentVotes: {} };
+    
     case 'ADD_MISSION_RESULT':
+      const newMissionNumber = state.currentMission + 1;
+      
+      // Validate mission progression before updating (Requirements 9.2, 9.3, 9.4)
+      const progressionValidation = validateMissionProgression(
+        newMissionNumber,
+        action.payload.resistancePoints,
+        action.payload.spyPoints
+      );
+      
+      if (!progressionValidation.isValid) {
+        console.warn('Mission progression validation failed:', progressionValidation.error);
+      }
+      
       return {
         ...state,
         missionHistory: [...state.missionHistory, action.payload],
-        currentMission: state.currentMission + 1,
+        currentMission: newMissionNumber,
       };
     
     case 'UPDATE_SCORES':
@@ -119,6 +153,21 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           isLeader: false,
         })),
       };
+    
+    case 'SET_CURRENT_MISSION':
+      // Validate mission number before setting (Requirements 9.2, 9.4)
+      const missionValidation = validateMissionProgression(
+        action.payload,
+        state.resistanceScore,
+        state.spyScore
+      );
+      
+      if (!missionValidation.isValid) {
+        console.warn('Mission number validation failed:', missionValidation.error);
+        return state; // Don't update if invalid
+      }
+      
+      return { ...state, currentMission: action.payload };
     
     case 'HANDLE_EVENT':
       // Handle incoming game events and update state accordingly
@@ -185,6 +234,59 @@ function handleGameEvent(state: GameState, event: GameEvent): GameState {
           ...p,
           isLeader: p.id === event.data.newLeader,
         })),
+      };
+    
+    case 'team-selected':
+      return {
+        ...state,
+        selectedTeam: event.data.selectedTeam,
+        phase: 'voting',
+        votingInProgress: true,
+        currentVotes: {}, // Clear previous votes
+      };
+    
+    case 'vote-cast':
+      return {
+        ...state,
+        currentVotes: {
+          ...state.currentVotes,
+          [event.playerId]: event.data.vote,
+        },
+      };
+    
+    case 'voting-completed':
+      return {
+        ...state,
+        votingInProgress: false,
+        // Keep votes for display purposes
+      };
+    
+    case 'mission-started':
+      return {
+        ...state,
+        phase: 'mission',
+        missionInProgress: true,
+      };
+    
+    case 'mission-choice-made':
+      // This event is handled locally in MissionExecution component
+      return state;
+    
+    case 'mission-completed':
+      return {
+        ...state,
+        missionInProgress: false,
+        phase: 'mission-result',
+        resistanceScore: event.data.newScores.resistance,
+        spyScore: event.data.newScores.spy,
+      };
+    
+    case 'game-ended':
+      return {
+        ...state,
+        phase: 'game-end',
+        resistanceScore: event.data.finalScores.resistance,
+        spyScore: event.data.finalScores.spy,
       };
     
     default:

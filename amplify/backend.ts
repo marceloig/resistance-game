@@ -1,6 +1,6 @@
 import { defineBackend } from '@aws-amplify/backend';
 import { CfnApi } from 'aws-cdk-lib/aws-appsync';
-import { PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
+import { PolicyStatement, Effect, Role } from 'aws-cdk-lib/aws-iam';
 import { auth } from './auth/resource';
 import { data } from './data/resource';
 
@@ -30,7 +30,7 @@ const gameEventsApi = new CfnApi(gameEventsStack, 'GameEventsApi', {
 });
 
 // Grant permissions to unauthenticated users to access AppSync Events
-const unauthRole = backend.auth.resources.unauthenticatedUserIamRole;
+const unauthRole = backend.auth.resources.unauthenticatedUserIamRole as Role;
 unauthRole.addToPolicy(new PolicyStatement({
   effect: Effect.ALLOW,
   actions: [

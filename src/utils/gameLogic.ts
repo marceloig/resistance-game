@@ -1,4 +1,4 @@
-import { Player, PlayerRole, ROLE_DISTRIBUTION, LogEntry, GameEvent } from '../types/game';
+import { Player, PlayerRole, ROLE_DISTRIBUTION, MISSION_REQUIREMENTS, LogEntry, GameEvent } from '../types/game';
 
 // Generate unique ID for players and log entries
 export function generateId(): string {
@@ -89,17 +89,32 @@ export function calculateMissionResult(choices: Record<string, boolean>): {
   };
 }
 
-// Check if game should end (Requirements 11.1, 11.2)
-export function checkGameEnd(resistanceScore: number, spyScore: number): {
+// Check if game should end (Requirements 11.1, 11.2, 9.4)
+export function checkGameEnd(resistanceScore: number, spyScore: number, currentMission: number): {
   gameEnded: boolean;
   winner?: 'resistance' | 'spy';
+  reason?: 'score' | 'mission-limit';
 } {
+  // Check score-based victory conditions (Requirements 11.1, 11.2)
   if (resistanceScore >= 3) {
-    return { gameEnded: true, winner: 'resistance' };
+    return { gameEnded: true, winner: 'resistance', reason: 'score' };
   }
   
   if (spyScore >= 3) {
-    return { gameEnded: true, winner: 'spy' };
+    return { gameEnded: true, winner: 'spy', reason: 'score' };
+  }
+  
+  // Check mission limit (Requirement 9.4)
+  if (currentMission > 5) {
+    // If we've completed 5 missions without a winner, determine by score
+    if (resistanceScore > spyScore) {
+      return { gameEnded: true, winner: 'resistance', reason: 'mission-limit' };
+    } else if (spyScore > resistanceScore) {
+      return { gameEnded: true, winner: 'spy', reason: 'mission-limit' };
+    } else {
+      // Tie - spies win in case of tie after 5 missions
+      return { gameEnded: true, winner: 'spy', reason: 'mission-limit' };
+    }
   }
   
   return { gameEnded: false };
@@ -174,4 +189,46 @@ export function createGameEvent(
 // Sort players alphabetically for consistent ordering
 export function sortPlayersAlphabetically(players: Player[]): Player[] {
   return [...players].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// Get mission requirements for current mission (Requirements 9.2, 9.4)
+export function getMissionRequirements(playerCount: number, missionNumber: number): number {
+  const requirements = MISSION_REQUIREMENTS[playerCount];
+  
+  if (!requirements) {
+    throw new Error(`Invalid player count: ${playerCount}`);
+  }
+  
+  if (missionNumber < 1 || missionNumber > 5) {
+    throw new Error(`Invalid mission number: ${missionNumber}. Must be between 1 and 5.`);
+  }
+  
+  return requirements[missionNumber - 1]; // Convert to 0-based index
+}
+
+// Check if mission progression is valid (Requirements 9.2, 9.3, 9.4)
+export function validateMissionProgression(
+  currentMission: number,
+  resistanceScore: number,
+  spyScore: number
+): {
+  isValid: boolean;
+  canContinue: boolean;
+  error?: string;
+} {
+  // Check mission bounds
+  if (currentMission < 1) {
+    return { isValid: false, canContinue: false, error: 'Mission number cannot be less than 1' };
+  }
+  
+  if (currentMission > 5) {
+    return { isValid: false, canContinue: false, error: 'Maximum 5 missions per game session' };
+  }
+  
+  // Check if game should have ended already
+  if (resistanceScore >= 3 || spyScore >= 3) {
+    return { isValid: true, canContinue: false, error: 'Game should have ended - team reached 3 points' };
+  }
+  
+  return { isValid: true, canContinue: true };
 }

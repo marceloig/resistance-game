@@ -86,21 +86,44 @@ describe('gameLogic', () => {
 
   describe('checkGameEnd', () => {
     it('should end game when resistance reaches 3 points', () => {
-      const result = checkGameEnd(3, 1);
+      const result = checkGameEnd(3, 1, 2);
       expect(result.gameEnded).toBe(true);
       expect(result.winner).toBe('resistance');
+      expect(result.reason).toBe('score');
     });
 
     it('should end game when spies reach 3 points', () => {
-      const result = checkGameEnd(1, 3);
+      const result = checkGameEnd(1, 3, 2);
       expect(result.gameEnded).toBe(true);
       expect(result.winner).toBe('spy');
+      expect(result.reason).toBe('score');
     });
 
     it('should not end game when neither team reaches 3 points', () => {
-      const result = checkGameEnd(2, 2);
+      const result = checkGameEnd(2, 2, 3);
       expect(result.gameEnded).toBe(false);
       expect(result.winner).toBeUndefined();
+    });
+
+    it('should end game after 5 missions with resistance leading', () => {
+      const result = checkGameEnd(2, 1, 6);
+      expect(result.gameEnded).toBe(true);
+      expect(result.winner).toBe('resistance');
+      expect(result.reason).toBe('mission-limit');
+    });
+
+    it('should end game after 5 missions with spies leading', () => {
+      const result = checkGameEnd(1, 2, 6);
+      expect(result.gameEnded).toBe(true);
+      expect(result.winner).toBe('spy');
+      expect(result.reason).toBe('mission-limit');
+    });
+
+    it('should end game after 5 missions with tie (spies win)', () => {
+      const result = checkGameEnd(2, 2, 6);
+      expect(result.gameEnded).toBe(true);
+      expect(result.winner).toBe('spy');
+      expect(result.reason).toBe('mission-limit');
     });
   });
 

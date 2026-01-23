@@ -31,6 +31,7 @@ describe('gameValidation', () => {
     selectedTeam: ['1', '2'],
     votingInProgress: false,
     missionInProgress: false,
+    currentVotes: {},
   };
 
   describe('validateGameStart', () => {
