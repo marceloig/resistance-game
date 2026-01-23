@@ -11,8 +11,7 @@ const schema = a.schema({
       updatedAt: a.datetime(),
     })
     .authorization((allow) => [
-      allow.authenticated(),
-      allow.unauthenticated().to(['read', 'create', 'update'])
+      allow.guest().to(['read', 'create', 'update'])
     ]),
 
   Player: a
@@ -27,8 +26,7 @@ const schema = a.schema({
       updatedAt: a.datetime(),
     })
     .authorization((allow) => [
-      allow.authenticated(),
-      allow.unauthenticated().to(['read', 'create', 'update'])
+      allow.guest().to(['read', 'create', 'update'])
     ]),
 });
 
@@ -37,10 +35,6 @@ export type Schema = ClientSchema<typeof schema>;
 export const data = defineData({
   schema,
   authorizationModes: {
-    defaultAuthorizationMode: 'identityPool',
-    identityPoolAuthorizationMode: {
-      authenticatedUserRole: 'ALLOW',
-      unauthenticatedUserRole: 'ALLOW'
-    }
+    defaultAuthorizationMode: 'identityPool'
   },
 });

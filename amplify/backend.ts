@@ -1,5 +1,6 @@
 import { defineBackend } from '@aws-amplify/backend';
 import { CfnApi } from 'aws-cdk-lib/aws-appsync';
+import { PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
 import { auth } from './auth/resource';
 import { data } from './data/resource';
 
@@ -9,7 +10,8 @@ export const backend = defineBackend({
 });
 
 // Create AppSync Events API for real-time game communication
-const gameEventsApi = new CfnApi(backend.createStack('GameEventsStack'), 'GameEventsApi', {
+const gameEventsStack = backend.createStack('GameEventsStack');
+const gameEventsApi = new CfnApi(gameEventsStack, 'GameEventsApi', {
   name: 'resistance-game-events-api',
   eventConfig: {
     authProviders: [{
@@ -27,10 +29,25 @@ const gameEventsApi = new CfnApi(backend.createStack('GameEventsStack'), 'GameEv
   }
 });
 
-// Export the Events API endpoint for frontend use
+// Grant permissions to unauthenticated users to access AppSync Events
+const unauthRole = backend.auth.resources.unauthenticatedUserIamRole;
+unauthRole.addToPolicy(new PolicyStatement({
+  effect: Effect.ALLOW,
+  actions: [
+    'appsync:EventConnect',
+    'appsync:EventSubscribe',
+    'appsync:EventPublish'
+  ],
+  resources: [
+    `arn:aws:appsync:${gameEventsStack.region}:${gameEventsStack.account}:apis/${gameEventsApi.attrApiId}/*`
+  ]
+}));
+
+// Export the Events API configuration for frontend use
 backend.addOutput({
   custom: {
-    gameEventsApiEndpoint: gameEventsApi.attrApiId,
-    gameEventsApiUrl: `https://${gameEventsApi.attrApiId}.appsync-api.${backend.stack.region}.amazonaws.com/event`
+    gameEventsApiId: gameEventsApi.attrApiId,
+    gameEventsApiUrl: `https://${gameEventsApi.attrApiId}.appsync-realtime-api.${gameEventsStack.region}.amazonaws.com/event`,
+    gameEventsRegion: gameEventsStack.region
   }
 });

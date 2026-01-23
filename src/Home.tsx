@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
-import { testBackendConnectivity, generateRoomCode } from './test-backend';
+import { testBackendConnectivity } from './test-backend';
+import { useGame } from './context/GameContext';
+import { generateRoomCode } from './utils/gameLogic';
 
 function Home() {
   const [backendStatus, setBackendStatus] = useState<'testing' | 'connected' | 'failed'>('testing');
-  const [roomCode, setRoomCode] = useState<string>('');
+  const { state, dispatch } = useGame();
 
   useEffect(() => {
     // Generate room code on load
-    setRoomCode(generateRoomCode());
+    const roomCode = generateRoomCode();
+    dispatch({ type: 'SET_ROOM_CODE', payload: roomCode });
     
     // Test backend connectivity
     testBackendConnectivity()
@@ -17,11 +20,11 @@ function Home() {
       .catch(() => {
         setBackendStatus('failed');
       });
-  }, []);
+  }, [dispatch]);
 
   const handleNewGame = () => {
     const newRoomCode = generateRoomCode();
-    setRoomCode(newRoomCode);
+    dispatch({ type: 'SET_ROOM_CODE', payload: newRoomCode });
     console.log('New game created with room code:', newRoomCode);
   };
 
@@ -42,7 +45,9 @@ function Home() {
       </div>
 
       <div style={{ marginBottom: '20px' }}>
-        <h3>Room Code: {roomCode}</h3>
+        <h3>Room Code: {state.roomCode}</h3>
+        <p>Game Phase: {state.phase}</p>
+        <p>Players: {state.players.length}</p>
       </div>
 
       <button onClick={handleNewGame}>New Game</button>
