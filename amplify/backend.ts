@@ -1,53 +1,17 @@
-import { defineBackend } from '@aws-amplify/backend';
-import { CfnApi } from 'aws-cdk-lib/aws-appsync';
-import { PolicyStatement, Effect, Role } from 'aws-cdk-lib/aws-iam';
-import { auth } from './auth/resource';
-import { data } from './data/resource';
+import { defineBackend } from "@aws-amplify/backend";
 
-export const backend = defineBackend({
-  auth,
-  data,
-});
-
-// Create AppSync Events API for real-time game communication
-const gameEventsStack = backend.createStack('GameEventsStack');
-const gameEventsApi = new CfnApi(gameEventsStack, 'GameEventsApi', {
-  name: 'resistance-game-events-api',
-  eventConfig: {
-    authProviders: [{
-      authType: 'AWS_IAM'
-    }],
-    connectionAuthModes: [{
-      authType: 'AWS_IAM'
-    }],
-    defaultPublishAuthModes: [{
-      authType: 'AWS_IAM'
-    }],
-    defaultSubscribeAuthModes: [{
-      authType: 'AWS_IAM'
-    }]
-  }
-});
-
-// Grant permissions to unauthenticated users to access AppSync Events
-const unauthRole = backend.auth.resources.unauthenticatedUserIamRole as Role;
-unauthRole.addToPolicy(new PolicyStatement({
-  effect: Effect.ALLOW,
-  actions: [
-    'appsync:EventConnect',
-    'appsync:EventSubscribe',
-    'appsync:EventPublish'
-  ],
-  resources: [
-    `arn:aws:appsync:${gameEventsStack.region}:${gameEventsStack.account}:apis/${gameEventsApi.attrApiId}/*`
-  ]
-}));
-
-// Export the Events API configuration for frontend use
-backend.addOutput({
-  custom: {
-    gameEventsApiId: gameEventsApi.attrApiId,
-    gameEventsApiUrl: `https://${gameEventsApi.attrApiId}.appsync-realtime-api.${gameEventsStack.region}.amazonaws.com/event`,
-    gameEventsRegion: gameEventsStack.region
-  }
-});
+/**
+ * Backend Amplify Gen 2.
+ *
+ * Este é o ponto de entrada do backend. Recursos como auth, data, storage
+ * e functions podem ser adicionados aqui conforme a necessidade do jogo.
+ *
+ * Para AppSync Events, a configuração da Event API é feita diretamente
+ * no console da AWS ou via CDK/CloudFormation, e o endpoint é referenciado
+ * no amplify_outputs.json.
+ *
+ * Exemplo de como adicionar auth:
+ *   import { auth } from "./auth/resource";
+ *   defineBackend({ auth });
+ */
+defineBackend({});
