@@ -28,16 +28,31 @@ export function WaitingRoom({ players, isHost, onStartGame }: WaitingRoomProps) 
     const canStart = players.length >= MIN_PLAYERS && players.length <= MAX_PLAYERS;
     const [enabledRoles, setEnabledRoles] = useState<Set<OptionalRole>>(new Set());
 
+    const commanderEnabled = enabledRoles.has("commander");
+
     function toggleRole(roleId: OptionalRole) {
         setEnabledRoles((prev) => {
             const next = new Set(prev);
             if (next.has(roleId)) {
                 next.delete(roleId);
+                // Desativar Comandante desativa os papéis que dependem dele
+                if (roleId === "commander") {
+                    next.delete("assassin");
+                    next.delete("bodyguard_false_commander");
+                }
             } else {
                 next.add(roleId);
             }
             return next;
         });
+    }
+
+    /** Assassino e Guarda-Costas+Falso Comandante só podem ser ativados se Comandante estiver ativo. */
+    function isRoleDisabled(roleId: OptionalRole): boolean {
+        if (roleId === "assassin" || roleId === "bodyguard_false_commander") {
+            return !commanderEnabled;
+        }
+        return false;
     }
 
     return (
@@ -87,6 +102,7 @@ export function WaitingRoom({ players, isHost, onStartGame }: WaitingRoomProps) 
                                 <Toggle
                                     key={role.id}
                                     checked={enabledRoles.has(role.id)}
+                                    disabled={isRoleDisabled(role.id)}
                                     onChange={() => toggleRole(role.id)}
                                     description={role.description}
                                 >
