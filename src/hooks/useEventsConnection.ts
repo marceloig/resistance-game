@@ -1,7 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Amplify } from "aws-amplify";
 import { events, type EventsChannel } from "aws-amplify/data";
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
+
+/**
+ * Verifica se o Amplify foi configurado com um endpoint de Events.
+ * Retorna false quando amplify_outputs.json não foi gerado (sandbox não rodou).
+ */
+function isAmplifyConfigured(): boolean {
+    try {
+        const config = Amplify.getConfig();
+        return Boolean(config?.API?.Events?.endpoint);
+    } catch {
+        return false;
+    }
+}
 
 /**
  * Tipo compatível com o DocumentType do Amplify.
@@ -35,6 +49,14 @@ export function useEventsConnection(
   // Conectar a um canal e escutar eventos
   const subscribe = useCallback(
     async (ch: string) => {
+      if (!isAmplifyConfigured()) {
+        console.warn(
+          "Amplify não configurado. Execute 'npm run sandbox' para gerar amplify_outputs.json."
+        );
+        setStatus("error");
+        return;
+      }
+
       try {
         setStatus("connecting");
 
