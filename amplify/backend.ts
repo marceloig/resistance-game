@@ -1,45 +1,73 @@
 import { defineBackend } from "@aws-amplify/backend";
 import {
-    CfnApi,
-    CfnApiKey,
-    CfnChannelNamespace,
-    AuthorizationType,
+    EventApi,
+    AppSyncAuthorizationType,
+    Code,
 } from "aws-cdk-lib/aws-appsync";
+import { Table, AttributeType, BillingMode } from "aws-cdk-lib/aws-dynamodb";
+import { RemovalPolicy } from "aws-cdk-lib";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const backend = defineBackend({});
 
-// Stack dedicada para os recursos do AppSync Events
+// Stack dedicada para os recursos do AppSync Events + DynamoDB
 const eventsStack = backend.createStack("appsync-events");
+
+/**
+ * Tabela DynamoDB para persistir o estado das salas de jogo.
+ * Usada pelo handler do AppSync Events para bloquear entrada durante partidas.
+ *
+ * Schema:
+ * - roomCode (PK): código de 5 caracteres da sala
+ * - status: "waiting" | "active" | "finished"
+ * - players: lista de nomes dos jogadores
+ * - updatedAt: timestamp ISO 8601
+ */
+const roomsTable = new Table(eventsStack, "GameRoomsTable", {
+    tableName: "game-rooms",
+    partitionKey: { name: "roomCode", type: AttributeType.STRING },
+    billingMode: BillingMode.PAY_PER_REQUEST,
+    removalPolicy: RemovalPolicy.DESTROY,
+});
 
 /**
  * Event API com autenticação via API Key.
  * Permite connect, publish e subscribe sem necessidade de login (Cognito).
- * Ideal para a fase inicial do jogo — pode ser migrado para User Pool depois.
  */
-const cfnEventApi = new CfnApi(eventsStack, "GameEventApi", {
-    name: "game-event-api",
-    eventConfig: {
+const eventApi = new EventApi(eventsStack, "GameEventApi", {
+    apiName: "game-event-api",
+    authorizationConfig: {
         authProviders: [
-            { authType: AuthorizationType.API_KEY },
+            { authorizationType: AppSyncAuthorizationType.API_KEY },
         ],
-        connectionAuthModes: [{ authType: AuthorizationType.API_KEY }],
-        defaultPublishAuthModes: [{ authType: AuthorizationType.API_KEY }],
-        defaultSubscribeAuthModes: [{ authType: AuthorizationType.API_KEY }],
+        connectionAuthModeTypes: [AppSyncAuthorizationType.API_KEY],
+        defaultPublishAuthModeTypes: [AppSyncAuthorizationType.API_KEY],
+        defaultSubscribeAuthModeTypes: [AppSyncAuthorizationType.API_KEY],
     },
 });
 
-// API Key para autenticação — expira em 365 dias
-const apiKey = new CfnApiKey(eventsStack, "GameEventApiKey", {
-    apiId: cfnEventApi.attrApiId,
-    expires: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60,
-});
+// Data source DynamoDB vinculado à Event API
+const ddbDataSource = eventApi.addDynamoDbDataSource(
+    "GameRoomsDataSource",
+    roomsTable,
+);
 
-// Namespace "default" — os canais seguem o padrão default/game-<CÓDIGO>
-const namespace = new CfnChannelNamespace(eventsStack, "DefaultNamespace", {
-    apiId: cfnEventApi.attrApiId,
-    name: "default",
+/**
+ * Namespace "default" com handler que intercepta eventos para:
+ * - Bloquear novos jogadores quando o jogo está ativo (player_joined → room_locked)
+ * - Marcar a sala como ativa no DynamoDB (game_started)
+ * - Marcar a sala como finalizada (game_over)
+ */
+eventApi.addChannelNamespace("default", {
+    code: Code.fromAsset(join(__dirname, "handlers", "gameEventHandler.js")),
+    publishHandlerConfig: {
+        dataSource: ddbDataSource,
+    },
 });
-namespace.addDependency(cfnEventApi);
 
 /**
  * Exporta a configuração do Event API para amplify_outputs.json.
@@ -48,10 +76,10 @@ namespace.addDependency(cfnEventApi);
 backend.addOutput({
     custom: {
         events: {
-            url: `https://${cfnEventApi.getAtt("Dns.Http").toString()}/event`,
+            url: `https://${eventApi.httpDns}/event`,
             aws_region: eventsStack.region,
-            default_authorization_type: AuthorizationType.API_KEY,
-            api_key: apiKey.attrApiKey,
+            default_authorization_type: "API_KEY",
+            api_key: eventApi.apiKeys?.["Default"]?.attrApiKey ?? "",
         },
     },
 });

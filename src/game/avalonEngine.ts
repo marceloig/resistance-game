@@ -56,10 +56,10 @@ export function createInitialGameState(playerNames: string[]): AvalonGameState {
 /**
  * Retorna as informações visíveis para um jogador baseado no seu papel.
  *
- * - Merlin: vê todos os malvados (exceto Mordred, se existir)
- * - Percival: vê Merlin e Morgana, sem distinguir
- * - Malvados: veem os outros malvados
- * - Servos Leais: não veem nada
+ * - Comandante: vê todos os espiões (exceto Mordred, se existir)
+ * - Guarda-Costas: vê Comandante e Falso Comandante, sem distinguir
+ * - Espiões: veem os outros espiões
+ * - Operativos da Resistência: não veem nada
  */
 export function getVisiblePlayers(
     observerName: string,
@@ -75,14 +75,14 @@ export function getVisiblePlayers(
 
             switch (observer.role) {
                 case "merlin":
-                    // Merlin vê os malvados (exceto Mordred, que não está implementado)
+                    // Comandante vê os espiões
                     if (p.loyalty === "evil") {
                         info.appearsAs = "evil";
                     }
                     break;
 
                 case "percival":
-                    // Percival vê Merlin e Morgana, sem saber quem é quem
+                    // Guarda-Costas vê Comandante e Falso Comandante, sem saber quem é quem
                     if (p.role === "merlin" || p.role === "morgana") {
                         info.appearsAs = "merlin_or_morgana";
                     }
@@ -91,14 +91,14 @@ export function getVisiblePlayers(
                 case "assassin":
                 case "morgana":
                 case "minion":
-                    // Malvados veem os outros malvados
+                    // Espiões veem os outros espiões
                     if (p.loyalty === "evil") {
                         info.appearsAs = "evil";
                     }
                     break;
 
                 default:
-                    // Servos Leais não veem nada especial
+                    // Operativos da Resistência não veem nada especial
                     break;
             }
 
@@ -186,12 +186,12 @@ export function isForcedProposal(rejectedCount: number): boolean {
     return rejectedCount >= MAX_REJECTED_PROPOSALS;
 }
 
-/** Encontra o jogador com o papel de Merlin. */
+/** Encontra o jogador com o papel de Comandante. */
 export function findMerlin(players: AvalonPlayer[]): AvalonPlayer | undefined {
     return players.find((p) => p.role === "merlin");
 }
 
-/** Verifica se o assassino acertou o Merlin. */
+/** Verifica se o assassino acertou o Comandante. */
 export function didAssassinFindMerlin(
     target: string,
     players: AvalonPlayer[]
@@ -205,17 +205,17 @@ export function determineWinner(
     state: AvalonGameState
 ): { winner: Loyalty; reason: string } {
     if (hasEvilWonByMissions(state.missionResults)) {
-        return { winner: "evil", reason: "Três missões falharam." };
+        return { winner: "evil", reason: "Três missões falharam. Os Espiões vencem!" };
     }
 
     if (state.assassinTarget) {
         if (didAssassinFindMerlin(state.assassinTarget, state.players)) {
-            return { winner: "evil", reason: "O Assassino identificou Merlin corretamente!" };
+            return { winner: "evil", reason: "O Assassino identificou o Comandante corretamente!" };
         }
-        return { winner: "good", reason: "O Assassino errou! Merlin sobreviveu." };
+        return { winner: "good", reason: "O Assassino errou! O Comandante sobreviveu." };
     }
 
-    return { winner: "good", reason: "Três missões foram completadas com sucesso!" };
+    return { winner: "good", reason: "Três missões completadas com sucesso! A Resistência vence!" };
 }
 
 /** Embaralha um array usando Fisher-Yates. */

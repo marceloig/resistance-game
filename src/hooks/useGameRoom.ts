@@ -6,7 +6,7 @@ import type { AvalonGameEvent } from "../types/avalon";
 export type RoomPhase = "lobby" | "connected";
 
 /** Tipos de eventos do sistema de sala. */
-export type RoomEventType = "player_joined" | "player_left";
+export type RoomEventType = "player_joined" | "player_left" | "room_locked";
 
 /** Evento de sistema publicado no canal (join/leave). */
 export interface RoomSystemEvent {
@@ -60,13 +60,13 @@ function buildChannelName(code: string): string {
     return `default/game-${code}`;
 }
 
-/** Verifica se um payload recebido é um evento de sistema (join/leave). */
+/** Verifica se um payload recebido é um evento de sistema (join/leave/lock). */
 function isSystemEvent(payload: unknown): payload is { event: RoomSystemEvent } {
     if (typeof payload !== "object" || payload === null) return false;
     const outer = payload as Record<string, unknown>;
     if (typeof outer.event !== "object" || outer.event === null) return false;
     const evt = outer.event as Record<string, unknown>;
-    return evt.type === "player_joined" || evt.type === "player_left";
+    return evt.type === "player_joined" || evt.type === "player_left" || evt.type === "room_locked";
 }
 
 /** Verifica se um payload recebido é um evento de jogo Avalon. */
@@ -113,6 +113,9 @@ export function useGameRoom() {
     const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
     const [connectedPlayers, setConnectedPlayers] = useState<string[]>([]);
 
+    // Indica se a sala está bloqueada (jogo em andamento)
+    const [roomLocked, setRoomLocked] = useState(false);
+
     // Garante que o player_joined é publicado apenas uma vez por sessão de sala
     const hasPublishedJoinRef = useRef(false);
 
@@ -125,6 +128,17 @@ export function useGameRoom() {
     const handleEvent = useCallback((event: unknown) => {
         if (isSystemEvent(event)) {
             const sysEvt = event.event;
+
+            // Jogador recebeu room_locked — sala em jogo, deve sair
+            if (sysEvt.type === "room_locked") {
+                // Apenas afeta jogadores que não fazem parte do jogo ativo
+                const currentName = roomRef.current.playerName;
+                if (currentName && sysEvt.playerName === currentName) {
+                    setRoomLocked(true);
+                }
+                return;
+            }
+
             setAuditLog((prev) => [...prev, toAuditEntry(sysEvt)]);
 
             // Atualiza lista de jogadores conectados
@@ -147,6 +161,16 @@ export function useGameRoom() {
                 setAuditLog((prev) => [...prev, {
                     segments: [
                         "Player ", { bold: gameEvt.playerName }, " recebeu seu papel na sala ", { bold: roomCode },
+                    ],
+                    timestamp: now,
+                }]);
+            }
+
+            // Loga quando um jogador vê seu papel
+            if (gameEvt.type === "role_revealed") {
+                setAuditLog((prev) => [...prev, {
+                    segments: [
+                        "Player ", { bold: gameEvt.playerName }, " viu seu papel",
                     ],
                     timestamp: now,
                 }]);
@@ -214,6 +238,7 @@ export function useGameRoom() {
     const createRoom = useCallback((playerName: string) => {
         const code = generateRoomCode();
         hasPublishedJoinRef.current = false;
+        setRoomLocked(false);
         setAuditLog([]);
         setConnectedPlayers([]);
         setChannelName(buildChannelName(code));
@@ -230,6 +255,7 @@ export function useGameRoom() {
             throw new Error(`Código inválido: "${code}". Esperado: 5 caracteres.`);
         }
         hasPublishedJoinRef.current = false;
+        setRoomLocked(false);
         setAuditLog([]);
         setConnectedPlayers([]);
         setChannelName(buildChannelName(normalized));
@@ -253,6 +279,7 @@ export function useGameRoom() {
         connectionRef.current.disconnect();
         avalon.resetGame();
         hasPublishedJoinRef.current = false;
+        setRoomLocked(false);
         setChannelName(undefined);
         setAuditLog([]);
         setConnectedPlayers([]);
@@ -287,6 +314,7 @@ export function useGameRoom() {
 
     return {
         room,
+        roomLocked,
         auditLog,
         connectedPlayers,
         createRoom,

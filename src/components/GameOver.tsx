@@ -29,7 +29,7 @@ export function GameOver({ winner, reason, isHost, onPlayAgain }: GameOverProps)
             <SpaceBetween size="l">
                 <Box variant="p" fontSize="heading-xl" textAlign="center">
                     <Badge color={isGoodWin ? "blue" : "red"}>
-                        {isGoodWin ? "🏰 Vitória dos Servos de Arthur!" : "🗡️ Vitória dos Lacaios de Mordred!"}
+                        {isGoodWin ? "🏰 Vitória da Resistência!" : "🕵️ Vitória dos Espiões!"}
                     </Badge>
                 </Box>
 

@@ -394,20 +394,20 @@ describe("determineWinner", () => {
         expect(result.reason).toContain("falharam");
     });
 
-    it("mal vence quando assassino acerta Merlin", () => {
+    it("mal vence quando assassino acerta o Comandante", () => {
         const state = buildGameState({
             missionResults: ["success", "success", "success", "pending", "pending"],
-            assassinTarget: "Alice", // Alice é Merlin
+            assassinTarget: "Alice", // Alice é o Comandante
         });
         const result = determineWinner(state);
         expect(result.winner).toBe("evil");
-        expect(result.reason).toContain("Assassino identificou Merlin");
+        expect(result.reason).toContain("Assassino identificou o Comandante");
     });
 
     it("bem vence quando assassino erra", () => {
         const state = buildGameState({
             missionResults: ["success", "success", "success", "pending", "pending"],
-            assassinTarget: "Bob", // Bob é Percival, não Merlin
+            assassinTarget: "Bob", // Bob é Guarda-Costas, não Comandante
         });
         const result = determineWinner(state);
         expect(result.winner).toBe("good");

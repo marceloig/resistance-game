@@ -16,7 +16,7 @@ interface AssassinPhaseProps {
 }
 
 /**
- * Fase do assassino: os Lacaios de Mordred tentam identificar Merlin.
+ * Fase do assassino: os Espiões tentam identificar o Comandante.
  * Apenas o jogador com o papel de Assassino pode escolher o alvo.
  *
  * Uso:
@@ -27,7 +27,7 @@ interface AssassinPhaseProps {
 export function AssassinPhase({ players, myName, isAssassin, myLoyalty, visiblePlayers, onChooseTarget }: AssassinPhaseProps) {
     const [target, setTarget] = useState<string | null>(null);
 
-    // Exclui o próprio jogador e os malvados conhecidos da lista de alvos
+    // Exclui o próprio jogador e os espiões conhecidos da lista de alvos
     const knownEvilNames = new Set(
         visiblePlayers.filter((p) => p.appearsAs === "evil").map((p) => p.name),
     );
@@ -37,18 +37,18 @@ export function AssassinPhase({ players, myName, isAssassin, myLoyalty, visibleP
         <Container header={<Header variant="h2">Fase do Assassino</Header>}>
             <SpaceBetween size="m">
                 <Box variant="p">
-                    Os Servos de Arthur completaram 3 missões com sucesso!
-                    Mas os Lacaios de Mordred têm uma última chance...
+                    A Resistência completou 3 missões com sucesso!
+                    Mas os Espiões têm uma última chance...
                 </Box>
 
                 <Box variant="p" fontWeight="bold">
-                    O Assassino deve tentar identificar Merlin.
-                    Se acertar, o Mal vence!
+                    O Assassino deve tentar identificar o Comandante.
+                    Se acertar, os Espiões vencem!
                 </Box>
 
                 {isAssassin && (
                     <SpaceBetween size="m">
-                        <Box variant="p">Você é o Assassino. Escolha quem você acredita ser Merlin:</Box>
+                        <Box variant="p">Você é o Assassino. Escolha quem você acredita ser o Comandante:</Box>
                         <RadioGroup
                             value={target}
                             onChange={({ detail }) => setTarget(detail.value)}
@@ -75,7 +75,7 @@ export function AssassinPhase({ players, myName, isAssassin, myLoyalty, visibleP
 
                 {!isAssassin && myLoyalty === "good" && (
                     <Box variant="p" color="text-body-secondary">
-                        Aguardando a decisão do Assassino... Torça para que Merlin não seja descoberto!
+                        Aguardando a decisão do Assassino... Torça para que o Comandante não seja descoberto!
                     </Box>
                 )}
             </SpaceBetween>

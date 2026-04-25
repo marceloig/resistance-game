@@ -1,14 +1,14 @@
-/** Lealdade de um jogador: Servos de Arthur (bem) ou Lacaios de Mordred (mal). */
+/** Lealdade de um jogador: Resistência (bem) ou Espiões (mal). */
 export type Loyalty = "good" | "evil";
 
-/** Papéis disponíveis no Avalon. */
+/** Papéis disponíveis no The Resistance. */
 export type AvalonRole =
-    | "loyal_servant"   // Servo Leal de Arthur (genérico, bom)
-    | "merlin"          // Conhece os malvados, mas deve se esconder
-    | "percival"        // Vê Merlin e Morgana, sem saber quem é quem
-    | "minion"          // Lacaio de Mordred (genérico, mal)
-    | "morgana"         // Aparece como Merlin para Percival
-    | "assassin";       // Pode assassinar Merlin no final
+    | "loyal_servant"   // Operativo da Resistência (genérico, bom)
+    | "merlin"          // Comandante — conhece os espiões, mas deve se esconder
+    | "percival"        // Guarda-Costas — vê Comandante e Falso Comandante
+    | "minion"          // Espião (genérico, mal)
+    | "morgana"         // Falso Comandante — aparece como Comandante para o Guarda-Costas
+    | "assassin";       // Assassino — pode assassinar o Comandante no final
 
 /** Mapeia cada papel à sua lealdade. */
 export const ROLE_LOYALTY: Record<AvalonRole, Loyalty> = {
@@ -22,15 +22,15 @@ export const ROLE_LOYALTY: Record<AvalonRole, Loyalty> = {
 
 /** Nomes legíveis dos papéis em pt-BR. */
 export const ROLE_LABELS: Record<AvalonRole, string> = {
-    loyal_servant: "Servo Leal de Arthur",
-    merlin: "Merlin",
-    percival: "Percival",
-    minion: "Lacaio de Mordred",
-    morgana: "Morgana",
+    loyal_servant: "Operativo da Resistência",
+    merlin: "Comandante",
+    percival: "Guarda-Costas",
+    minion: "Espião",
+    morgana: "Falso Comandante",
     assassin: "Assassino",
 };
 
-/** Fases do jogo Avalon. */
+/** Fases do jogo The Resistance. */
 export type GamePhase =
     | "waiting"          // Aguardando jogadores na sala
     | "role_reveal"      // Revelação de papéis
@@ -38,7 +38,7 @@ export type GamePhase =
     | "team_vote"        // Todos votam na equipe proposta
     | "mission_vote"     // Membros da equipe votam sucesso/falha
     | "mission_result"   // Resultado da missão revelado
-    | "assassin_phase"   // Lacaios tentam identificar Merlin
+    | "assassin_phase"   // Espiões tentam identificar o Comandante
     | "game_over";       // Fim do jogo
 
 /** Resultado de uma missão. */
@@ -72,7 +72,7 @@ export interface MissionOutcome {
     result: MissionResult;
 }
 
-/** Estado completo do jogo Avalon. */
+/** Estado completo do jogo The Resistance. */
 export interface AvalonGameState {
     phase: GamePhase;
     players: AvalonPlayer[];
@@ -92,7 +92,7 @@ export interface AvalonGameState {
     missionResults: MissionResult[];
     /** Histórico detalhado de cada missão completada. */
     missionHistory: MissionOutcome[];
-    /** Jogador escolhido pelo assassino como Merlin. */
+    /** Jogador escolhido pelo assassino como Comandante. */
     assassinTarget: string | null;
     /** Vencedor final do jogo. */
     winner: Loyalty | null;
@@ -106,6 +106,7 @@ export type AvalonGameEvent =
     | { type: "game_started"; state: AvalonGameState }
     | { type: "role_assigned"; playerName: string; role: AvalonRole; loyalty: Loyalty; visiblePlayers: VisiblePlayerInfo[] }
     | { type: "role_reveal_complete" }
+    | { type: "role_revealed"; playerName: string }
     | { type: "team_proposed"; leader: string; team: string[]; missionIndex: number }
     | { type: "team_vote_cast"; playerName: string; vote: TeamVoteChoice }
     | { type: "team_vote_result"; votes: Record<string, TeamVoteChoice>; approved: boolean; rejectedCount: number; newLeader: string; newMission: number }

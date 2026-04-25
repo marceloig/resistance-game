@@ -49,7 +49,7 @@ export interface AvalonLocalState {
     voteCount: number;
 }
 
-const INITIAL_LOCAL_STATE: AvalonLocalState = {
+export const INITIAL_LOCAL_STATE: AvalonLocalState = {
     phase: "waiting",
     players: [],
     myRole: null,
@@ -135,6 +135,11 @@ export function useAvalonGame(
         gameStateRef.current.phase = "team_proposal";
         await publishGameEvent({ type: "role_reveal_complete" });
     }, [isHost, publishGameEvent]);
+
+    /** Jogador notifica que viu seu papel. */
+    const revealRole = useCallback(async () => {
+        await publishGameEvent({ type: "role_revealed", playerName: myName });
+    }, [myName, publishGameEvent]);
 
     /**
      * Líder propõe uma equipe para a missão.
@@ -373,6 +378,7 @@ export function useAvalonGame(
         localState,
         startGame,
         confirmRoleReveal,
+        revealRole,
         proposeTeam,
         castTeamVote,
         castMissionVote,
@@ -383,8 +389,8 @@ export function useAvalonGame(
     };
 }
 
-/** Aplica um evento ao estado local do jogador. Função pura. */
-function applyEventToLocalState(
+/** Aplica um evento ao estado local do jogador. Função pura, exportada para testes. */
+export function applyEventToLocalState(
     prev: AvalonLocalState,
     event: AvalonGameEvent,
     myName: string,

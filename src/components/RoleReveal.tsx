@@ -14,6 +14,7 @@ interface RoleRevealProps {
     visiblePlayers: VisiblePlayerInfo[];
     isHost: boolean;
     onConfirm: () => void;
+    onReveal: () => void;
 }
 
 /**
@@ -25,11 +26,16 @@ interface RoleRevealProps {
  * <RoleReveal myRole="merlin" myLoyalty="good" visiblePlayers={[...]} isHost={true} onConfirm={confirm} />
  * ```
  */
-export function RoleReveal({ myRole, myLoyalty, visiblePlayers, isHost, onConfirm }: RoleRevealProps) {
+export function RoleReveal({ myRole, myLoyalty, visiblePlayers, isHost, onConfirm, onReveal }: RoleRevealProps) {
     const [revealed, setRevealed] = useState(false);
 
+    function handleReveal() {
+        setRevealed(true);
+        onReveal();
+    }
+
     const loyaltyColor = myLoyalty === "good" ? "blue" : "red";
-    const loyaltyLabel = myLoyalty === "good" ? "Servo de Arthur" : "Lacaio de Mordred";
+    const loyaltyLabel = myLoyalty === "good" ? "Resistência" : "Espião";
     const knownPlayers = visiblePlayers.filter((p) => p.appearsAs !== "unknown");
 
     return (
@@ -41,7 +47,7 @@ export function RoleReveal({ myRole, myLoyalty, visiblePlayers, isHost, onConfir
                             Clique no botão abaixo para revelar seu papel.
                             Certifique-se de que ninguém está olhando sua tela.
                         </Box>
-                        <Button variant="primary" onClick={() => setRevealed(true)}>
+                        <Button variant="primary" onClick={handleReveal}>
                             Revelar Papel
                         </Button>
                     </SpaceBetween>
@@ -99,9 +105,9 @@ export function RoleReveal({ myRole, myLoyalty, visiblePlayers, isHost, onConfir
 function visibilityLabel(appearsAs: VisiblePlayerInfo["appearsAs"]): string {
     switch (appearsAs) {
         case "evil":
-            return "🔴 Malvado";
+            return "🔴 Espião";
         case "merlin_or_morgana":
-            return "🔮 Merlin ou Morgana (você não sabe qual)";
+            return "🔮 Comandante ou Falso Comandante (você não sabe qual)";
         default:
             return "Desconhecido";
     }

@@ -15,6 +15,7 @@ interface AvalonBoardProps {
     playerName: string;
     isHost: boolean;
     onConfirmRoles: () => void;
+    onRevealRole: () => void;
     onProposeTeam: (team: string[]) => void;
     onTeamVote: (choice: TeamVoteChoice) => void;
     onMissionVote: (choice: MissionVoteChoice) => void;
@@ -37,6 +38,7 @@ export function AvalonBoard({
     playerName,
     isHost,
     onConfirmRoles,
+    onRevealRole,
     onProposeTeam,
     onTeamVote,
     onMissionVote,
@@ -68,6 +70,7 @@ export function AvalonBoard({
                         visiblePlayers={state.visiblePlayers}
                         isHost={isHost}
                         onConfirm={onConfirmRoles}
+                        onReveal={onRevealRole}
                     />
                 );
 

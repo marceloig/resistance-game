@@ -66,6 +66,7 @@ export function GameRoom({
                     playerName={playerName}
                     isHost={isHost}
                     onConfirmRoles={avalon.confirmRoleReveal}
+                    onRevealRole={avalon.revealRole}
                     onProposeTeam={avalon.proposeTeam}
                     onTeamVote={avalon.castTeamVote}
                     onMissionVote={avalon.castMissionVote}

@@ -30,27 +30,27 @@ export const TWO_FAIL_MISSIONS: Record<number, number[]> = {
 
 /**
  * Distribuição de papéis por número de jogadores.
- * Usa papéis especiais recomendados: Merlin, Assassin, Percival, Morgana.
+ * Usa papéis especiais: Comandante, Assassino, Guarda-Costas, Falso Comandante.
  */
 export function getRolesForPlayerCount(count: number): AvalonRole[] {
     switch (count) {
         case 5:
-            // 3 bons (Merlin, Percival, Servo), 2 maus (Assassino, Morgana)
+            // 3 resistência (Comandante, Guarda-Costas, Operativo), 2 espiões (Assassino, Falso Comandante)
             return ["merlin", "percival", "loyal_servant", "assassin", "morgana"];
         case 6:
-            // 4 bons, 2 maus
+            // 4 resistência, 2 espiões
             return ["merlin", "percival", "loyal_servant", "loyal_servant", "assassin", "morgana"];
         case 7:
-            // 4 bons, 3 maus
+            // 4 resistência, 3 espiões
             return ["merlin", "percival", "loyal_servant", "loyal_servant", "assassin", "morgana", "minion"];
         case 8:
-            // 5 bons, 3 maus
+            // 5 resistência, 3 espiões
             return ["merlin", "percival", "loyal_servant", "loyal_servant", "loyal_servant", "assassin", "morgana", "minion"];
         case 9:
-            // 6 bons, 3 maus
+            // 6 resistência, 3 espiões
             return ["merlin", "percival", "loyal_servant", "loyal_servant", "loyal_servant", "loyal_servant", "assassin", "morgana", "minion"];
         case 10:
-            // 6 bons, 4 maus
+            // 6 resistência, 4 espiões
             return ["merlin", "percival", "loyal_servant", "loyal_servant", "loyal_servant", "loyal_servant", "assassin", "morgana", "minion", "minion"];
         default:
             throw new Error(`Número de jogadores inválido: ${count}. Esperado: 5-10.`);

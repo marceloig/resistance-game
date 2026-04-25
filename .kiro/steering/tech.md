@@ -10,6 +10,8 @@
 | UI components | Cloudscape Design System v3 | AWS design system — import individual components, not barrel exports |
 | Backend | AWS Amplify Gen 2 | Backend defined in `amplify/backend.ts` using `defineBackend()` |
 | Real-time | AWS AppSync Events | WebSocket pub/sub via `aws-amplify/data` `events` API |
+| Database | Amazon DynamoDB | Room state persistence via AppSync Events data source integration |
+| Testing | Vitest 4 | Unit and integration tests, `npm run test` |
 
 ## Commands
 
@@ -19,6 +21,8 @@
 | `npm run build` | TypeScript check + Vite production build (outputs to `dist/`) |
 | `npm run preview` | Preview production build locally |
 | `npm run sandbox` | Start Amplify Gen 2 sandbox (generates `amplify_outputs.json`) |
+| `npm run test` | Run all tests (unit + integration) via Vitest |
+| `npm run test:watch` | Run tests in watch mode |
 
 ## Key Conventions
 
@@ -51,7 +55,9 @@
 
 ## Tests
 
-- Tests run with a single command: `<project-specific>`.
+- Tests run with: `npm run test` (Vitest, single run) or `npm run test:watch`.
+- Unit tests in `src/game/__tests__/avalonConfig.test.ts` and `avalonEngine.test.ts`.
+- Integration tests in `src/game/__tests__/gameFlow.integration.test.ts`.
 - Every new function gets a test. Bug fixes get a regression test.
 - Mock external I/O (API, DB, filesystem) with named fake classes,
   not inline stubs.

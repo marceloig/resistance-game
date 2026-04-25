@@ -1,7 +1,6 @@
 import Container from "@cloudscape-design/components/container";
 import Header from "@cloudscape-design/components/header";
 import SpaceBetween from "@cloudscape-design/components/space-between";
-import Button from "@cloudscape-design/components/button";
 import Box from "@cloudscape-design/components/box";
 import Badge from "@cloudscape-design/components/badge";
 import type { MissionVoteChoice, Loyalty } from "../types/avalon";
@@ -61,18 +60,44 @@ export function MissionVote({
                             Você faz parte da equipe. Escolha seu voto secreto:
                         </Box>
                         <SpaceBetween size="s" direction="horizontal">
-                            <Button variant="primary" onClick={() => onVote("success")}>
+                            <button
+                                type="button"
+                                onClick={() => onVote("success")}
+                                style={{
+                                    backgroundColor: "#00802f",
+                                    color: "#ffffff",
+                                    border: "none",
+                                    borderRadius: "20px",
+                                    padding: "8px 20px",
+                                    fontSize: "14px",
+                                    fontWeight: "bold",
+                                    cursor: "pointer",
+                                }}
+                            >
                                 ✓ Sucesso
-                            </Button>
+                            </button>
                             {canFail && (
-                                <Button variant="normal" onClick={() => onVote("fail")}>
+                                <button
+                                    type="button"
+                                    onClick={() => onVote("fail")}
+                                    style={{
+                                        backgroundColor: "#db0000",
+                                        color: "#ffffff",
+                                        border: "none",
+                                        borderRadius: "20px",
+                                        padding: "8px 20px",
+                                        fontSize: "14px",
+                                        fontWeight: "bold",
+                                        cursor: "pointer",
+                                    }}
+                                >
                                     ✗ Falha
-                                </Button>
+                                </button>
                             )}
                         </SpaceBetween>
                         {!canFail && (
                             <Box variant="p" color="text-body-secondary" fontSize="body-s">
-                                Como Servo de Arthur, você deve votar Sucesso.
+                                Como Operativo da Resistência, você deve votar Sucesso.
                             </Box>
                         )}
                     </SpaceBetween>
