@@ -13,7 +13,7 @@ import {
     MAX_REJECTED_PROPOSALS,
     MISSIONS_TO_WIN,
 } from "./avalonConfig";
-import { getRolesForPlayerCount } from "./avalonConfig";
+import { getRolesForPlayerCount, type OptionalRole } from "./avalonConfig";
 import { ROLE_LOYALTY } from "../types/avalon";
 
 /**
@@ -21,11 +21,14 @@ import { ROLE_LOYALTY } from "../types/avalon";
  *
  * Uso:
  * ```ts
- * const state = createInitialGameState(["Alice", "Bob", "Carol", "Dave", "Eve"]);
+ * const state = createInitialGameState(["Alice", "Bob", "Carol", "Dave", "Eve"], new Set(["commander", "assassin"]));
  * ```
  */
-export function createInitialGameState(playerNames: string[]): AvalonGameState {
-    const roles = getRolesForPlayerCount(playerNames.length);
+export function createInitialGameState(
+    playerNames: string[],
+    enabledOptionalRoles: Set<OptionalRole> = new Set(),
+): AvalonGameState {
+    const roles = getRolesForPlayerCount(playerNames.length, enabledOptionalRoles);
     const shuffledRoles = shuffleArray([...roles]);
 
     const players: AvalonPlayer[] = playerNames.map((name, i) => ({
@@ -167,10 +170,16 @@ export function countFailures(results: AvalonGameState["missionResults"]): numbe
 
 /**
  * Verifica se o jogo deve ir para a fase do assassino.
- * Retorna true se o bem venceu 3 missões (assassino ainda pode reverter).
+ * Retorna true se a Resistência venceu 3 missões E existe um Comandante e um Assassino no jogo.
  */
-export function shouldStartAssassinPhase(results: AvalonGameState["missionResults"]): boolean {
-    return countSuccesses(results) >= MISSIONS_TO_WIN;
+export function shouldStartAssassinPhase(
+    results: AvalonGameState["missionResults"],
+    players: AvalonPlayer[] = [],
+): boolean {
+    if (countSuccesses(results) < MISSIONS_TO_WIN) return false;
+    const hasCommander = players.some((p) => p.role === "merlin");
+    const hasAssassin = players.some((p) => p.role === "assassin");
+    return hasCommander && hasAssassin;
 }
 
 /** Verifica se o mal venceu por 3 missões falhadas. */

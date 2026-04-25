@@ -18,9 +18,11 @@ import {
     nextLeader,
     shouldStartAssassinPhase,
     hasEvilWonByMissions,
+    countSuccesses,
     determineWinner,
     isForcedProposal,
 } from "../game/avalonEngine";
+import type { OptionalRole } from "../game/avalonConfig";
 import type { EventPayload } from "./useEventsConnection";
 
 /** Estado local do jogador no Avalon. */
@@ -107,10 +109,10 @@ export function useAvalonGame(
 
     /** Host inicia o jogo com os jogadores atuais. */
     const startGame = useCallback(
-        async (playerNames: string[]) => {
+        async (playerNames: string[], enabledRoles: Set<OptionalRole> = new Set()) => {
             if (!isHost) return;
 
-            const state = createInitialGameState(playerNames);
+            const state = createInitialGameState(playerNames, enabledRoles);
             gameStateRef.current = state;
 
             await publishGameEvent({ type: "game_started", state: stripRoles(state) });
@@ -204,10 +206,19 @@ export function useAvalonGame(
             return;
         }
 
-        // Bem venceu 3 missões — fase do assassino
-        if (shouldStartAssassinPhase(gs.missionResults)) {
+        // Bem venceu 3 missões — fase do assassino (se houver Comandante e Assassino)
+        if (shouldStartAssassinPhase(gs.missionResults, gs.players)) {
             gs.phase = "assassin_phase";
             await publishGameEvent({ type: "assassin_phase_started" });
+            return;
+        }
+
+        // Bem venceu 3 missões sem Comandante/Assassino — vitória direta
+        if (countSuccesses(gs.missionResults) >= 3) {
+            const result = determineWinner(gs);
+            gs.phase = "game_over";
+            gs.winner = result.winner;
+            await publishGameEvent({ type: "game_over", winner: result.winner, reason: result.reason });
             return;
         }
 

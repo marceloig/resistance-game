@@ -8,6 +8,7 @@ import {
     MIN_PLAYERS,
     MAX_PLAYERS,
     getRolesForPlayerCount,
+    type OptionalRole,
 } from "../avalonConfig";
 import { ROLE_LOYALTY } from "../../types/avalon";
 
@@ -66,20 +67,44 @@ describe("avalonConfig", () => {
             expect(() => getRolesForPlayerCount(11)).toThrow("Número de jogadores inválido: 11");
         });
 
-        it("sempre inclui exatamente 1 merlin e 1 assassin", () => {
+        it("sempre inclui exatamente 1 merlin e 1 assassin quando ativados", () => {
+            const enabled = new Set<OptionalRole>(["commander", "assassin"]);
             for (let n = MIN_PLAYERS; n <= MAX_PLAYERS; n++) {
-                const roles = getRolesForPlayerCount(n);
+                const roles = getRolesForPlayerCount(n, enabled);
                 expect(roles.filter((r) => r === "merlin")).toHaveLength(1);
                 expect(roles.filter((r) => r === "assassin")).toHaveLength(1);
             }
         });
 
-        it("sempre inclui exatamente 1 percival e 1 morgana", () => {
+        it("não inclui merlin nem assassin quando desativados", () => {
             for (let n = MIN_PLAYERS; n <= MAX_PLAYERS; n++) {
                 const roles = getRolesForPlayerCount(n);
+                expect(roles.filter((r) => r === "merlin")).toHaveLength(0);
+                expect(roles.filter((r) => r === "assassin")).toHaveLength(0);
+            }
+        });
+
+        it("sempre inclui exatamente 1 percival e 1 morgana quando ativados", () => {
+            const enabled = new Set<OptionalRole>(["bodyguard_false_commander"]);
+            for (let n = MIN_PLAYERS; n <= MAX_PLAYERS; n++) {
+                const roles = getRolesForPlayerCount(n, enabled);
                 expect(roles.filter((r) => r === "percival")).toHaveLength(1);
                 expect(roles.filter((r) => r === "morgana")).toHaveLength(1);
             }
+        });
+
+        it("não inclui percival nem morgana quando desativados", () => {
+            for (let n = MIN_PLAYERS; n <= MAX_PLAYERS; n++) {
+                const roles = getRolesForPlayerCount(n);
+                expect(roles.filter((r) => r === "percival")).toHaveLength(0);
+                expect(roles.filter((r) => r === "morgana")).toHaveLength(0);
+            }
+        });
+
+        it("sem papéis opcionais, usa apenas loyal_servant e minion", () => {
+            const roles = getRolesForPlayerCount(5);
+            expect(roles.filter((r) => r === "loyal_servant")).toHaveLength(3);
+            expect(roles.filter((r) => r === "minion")).toHaveLength(2);
         });
 
         it("retorna o número correto de papéis para cada contagem", () => {

@@ -29,32 +29,70 @@ export const TWO_FAIL_MISSIONS: Record<number, number[]> = {
 };
 
 /**
- * Distribuição de papéis por número de jogadores.
- * Usa papéis especiais: Comandante, Assassino, Guarda-Costas, Falso Comandante.
+ * Papéis opcionais que o host pode ativar antes de iniciar o jogo.
+ * Quando desativados, são substituídos por Operativo da Resistência ou Espião.
+ *
+ * "bodyguard_false_commander" ativa ambos juntos — Guarda-Costas só faz sentido
+ * com Falso Comandante (sua habilidade é distinguir entre os dois).
  */
-export function getRolesForPlayerCount(count: number): AvalonRole[] {
-    switch (count) {
-        case 5:
-            // 3 resistência (Comandante, Guarda-Costas, Operativo), 2 espiões (Assassino, Falso Comandante)
-            return ["merlin", "percival", "loyal_servant", "assassin", "morgana"];
-        case 6:
-            // 4 resistência, 2 espiões
-            return ["merlin", "percival", "loyal_servant", "loyal_servant", "assassin", "morgana"];
-        case 7:
-            // 4 resistência, 3 espiões
-            return ["merlin", "percival", "loyal_servant", "loyal_servant", "assassin", "morgana", "minion"];
-        case 8:
-            // 5 resistência, 3 espiões
-            return ["merlin", "percival", "loyal_servant", "loyal_servant", "loyal_servant", "assassin", "morgana", "minion"];
-        case 9:
-            // 6 resistência, 3 espiões
-            return ["merlin", "percival", "loyal_servant", "loyal_servant", "loyal_servant", "loyal_servant", "assassin", "morgana", "minion"];
-        case 10:
-            // 6 resistência, 4 espiões
-            return ["merlin", "percival", "loyal_servant", "loyal_servant", "loyal_servant", "loyal_servant", "assassin", "morgana", "minion", "minion"];
-        default:
-            throw new Error(`Número de jogadores inválido: ${count}. Esperado: 5-10.`);
+export type OptionalRole = "commander" | "bodyguard_false_commander" | "assassin";
+
+/** Todos os papéis opcionais disponíveis com seus rótulos em pt-BR. */
+export const OPTIONAL_ROLES: { id: OptionalRole; label: string; description: string }[] = [
+    { id: "commander", label: "Comandante", description: "Conhece todos os espiões. Alvo do Assassino." },
+    { id: "assassin", label: "Assassino", description: "Pode eliminar o Comandante após 3 missões bem-sucedidas." },
+    { id: "bodyguard_false_commander", label: "Guarda-Costas + Falso Comandante", description: "Guarda-Costas vê Comandante e Falso Comandante sem distinguir. Falso Comandante se passa por Comandante." },
+];
+
+/**
+ * Proporção de jogadores bons e maus por número total de jogadores.
+ * Fonte: regras oficiais do The Resistance.
+ */
+const GOOD_EVIL_SPLIT: Record<number, { good: number; evil: number }> = {
+    5:  { good: 3, evil: 2 },
+    6:  { good: 4, evil: 2 },
+    7:  { good: 4, evil: 3 },
+    8:  { good: 5, evil: 3 },
+    9:  { good: 6, evil: 3 },
+    10: { good: 6, evil: 4 },
+};
+
+/**
+ * Gera a lista de papéis baseada no número de jogadores e papéis opcionais ativados.
+ *
+ * Papéis padrão: Operativo da Resistência (bom) e Espião (mal).
+ * Papéis opcionais substituem um Operativo ou Espião conforme a lealdade.
+ *
+ * Uso:
+ * ```ts
+ * getRolesForPlayerCount(5, new Set(["commander", "assassin"]));
+ * ```
+ */
+export function getRolesForPlayerCount(
+    count: number,
+    enabledOptionalRoles: Set<OptionalRole> = new Set(),
+): AvalonRole[] {
+    const split = GOOD_EVIL_SPLIT[count];
+    if (!split) {
+        throw new Error(`Número de jogadores inválido: ${count}. Esperado: 5-10.`);
     }
+
+    const goodRoles: AvalonRole[] = [];
+    const evilRoles: AvalonRole[] = [];
+
+    // Adiciona papéis opcionais bons
+    if (enabledOptionalRoles.has("commander")) goodRoles.push("merlin");
+    if (enabledOptionalRoles.has("bodyguard_false_commander")) goodRoles.push("percival");
+
+    // Adiciona papéis opcionais maus
+    if (enabledOptionalRoles.has("assassin")) evilRoles.push("assassin");
+    if (enabledOptionalRoles.has("bodyguard_false_commander")) evilRoles.push("morgana");
+
+    // Preenche o restante com papéis genéricos
+    while (goodRoles.length < split.good) goodRoles.push("loyal_servant");
+    while (evilRoles.length < split.evil) evilRoles.push("minion");
+
+    return [...goodRoles, ...evilRoles];
 }
 
 /** Número máximo de propostas rejeitadas antes de forçar a equipe. */

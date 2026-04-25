@@ -1,20 +1,23 @@
+import { useState } from "react";
 import Container from "@cloudscape-design/components/container";
 import Header from "@cloudscape-design/components/header";
 import SpaceBetween from "@cloudscape-design/components/space-between";
 import Button from "@cloudscape-design/components/button";
 import Box from "@cloudscape-design/components/box";
 import Badge from "@cloudscape-design/components/badge";
-import { MIN_PLAYERS, MAX_PLAYERS } from "../game/avalonConfig";
+import Toggle from "@cloudscape-design/components/toggle";
+import { MIN_PLAYERS, MAX_PLAYERS, OPTIONAL_ROLES, type OptionalRole } from "../game/avalonConfig";
 
 interface WaitingRoomProps {
     players: string[];
     isHost: boolean;
-    onStartGame: () => void;
+    onStartGame: (enabledRoles: Set<OptionalRole>) => void;
 }
 
 /**
  * Sala de espera antes do jogo começar.
- * Mostra a lista de jogadores conectados e permite ao host iniciar o jogo.
+ * Mostra a lista de jogadores conectados, permite ao host selecionar papéis
+ * opcionais e iniciar o jogo.
  *
  * Uso:
  * ```tsx
@@ -23,53 +26,93 @@ interface WaitingRoomProps {
  */
 export function WaitingRoom({ players, isHost, onStartGame }: WaitingRoomProps) {
     const canStart = players.length >= MIN_PLAYERS && players.length <= MAX_PLAYERS;
+    const [enabledRoles, setEnabledRoles] = useState<Set<OptionalRole>>(new Set());
+
+    function toggleRole(roleId: OptionalRole) {
+        setEnabledRoles((prev) => {
+            const next = new Set(prev);
+            if (next.has(roleId)) {
+                next.delete(roleId);
+            } else {
+                next.add(roleId);
+            }
+            return next;
+        });
+    }
 
     return (
-        <Container
-            header={
-                <Header
-                    variant="h2"
-                    counter={`(${players.length}/${MAX_PLAYERS})`}
-                >
-                    Jogadores na Sala
-                </Header>
-            }
-        >
-            <SpaceBetween size="m">
-                <SpaceBetween size="xs">
-                    {players.map((name, idx) => (
-                        <Box key={idx} variant="p">
-                            <Badge color="blue">{idx + 1}</Badge>{" "}
-                            {name}
-                            {idx === 0 && (
-                                <Box variant="span" color="text-body-secondary"> (host)</Box>
-                            )}
-                        </Box>
-                    ))}
-                </SpaceBetween>
-
-                {!canStart && (
-                    <Box variant="p" color="text-body-secondary">
-                        Mínimo de {MIN_PLAYERS} jogadores para iniciar. Máximo: {MAX_PLAYERS}.
-                    </Box>
-                )}
-
-                {isHost && (
-                    <Button
-                        variant="primary"
-                        disabled={!canStart}
-                        onClick={onStartGame}
+        <SpaceBetween size="l">
+            <Container
+                header={
+                    <Header
+                        variant="h2"
+                        counter={`(${players.length}/${MAX_PLAYERS})`}
                     >
-                        Iniciar Jogo ({players.length} jogadores)
-                    </Button>
-                )}
+                        Jogadores na Sala
+                    </Header>
+                }
+            >
+                <SpaceBetween size="m">
+                    <SpaceBetween size="xs">
+                        {players.map((name, idx) => (
+                            <Box key={idx} variant="p">
+                                <Badge color="blue">{idx + 1}</Badge>{" "}
+                                {name}
+                                {idx === 0 && (
+                                    <Box variant="span" color="text-body-secondary"> (host)</Box>
+                                )}
+                            </Box>
+                        ))}
+                    </SpaceBetween>
 
-                {!isHost && (
-                    <Box variant="p" color="text-body-secondary">
-                        Aguardando o host iniciar o jogo...
-                    </Box>
-                )}
-            </SpaceBetween>
-        </Container>
+                    {!canStart && (
+                        <Box variant="p" color="text-body-secondary">
+                            Mínimo de {MIN_PLAYERS} jogadores para iniciar. Máximo: {MAX_PLAYERS}.
+                        </Box>
+                    )}
+                </SpaceBetween>
+            </Container>
+
+            {isHost && (
+                <Container
+                    header={<Header variant="h2">Papéis Opcionais</Header>}
+                >
+                    <SpaceBetween size="m">
+                        <Box variant="p" color="text-body-secondary">
+                            Papéis padrão: Operativo da Resistência e Espião.
+                            Ative papéis especiais para mais complexidade.
+                        </Box>
+                        <SpaceBetween size="xs">
+                            {OPTIONAL_ROLES.map((role) => (
+                                <Toggle
+                                    key={role.id}
+                                    checked={enabledRoles.has(role.id)}
+                                    onChange={() => toggleRole(role.id)}
+                                    description={role.description}
+                                >
+                                    {role.label}
+                                </Toggle>
+                            ))}
+                        </SpaceBetween>
+                    </SpaceBetween>
+                </Container>
+            )}
+
+            {isHost && (
+                <Button
+                    variant="primary"
+                    disabled={!canStart}
+                    onClick={() => onStartGame(enabledRoles)}
+                >
+                    Iniciar Jogo ({players.length} jogadores)
+                </Button>
+            )}
+
+            {!isHost && (
+                <Box variant="p" color="text-body-secondary">
+                    Aguardando o host iniciar o jogo...
+                </Box>
+            )}
+        </SpaceBetween>
     );
 }

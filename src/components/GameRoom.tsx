@@ -7,6 +7,7 @@ import Badge from "@cloudscape-design/components/badge";
 import type { ConnectionStatus } from "../hooks/useEventsConnection";
 import type { AuditLogEntry } from "../hooks/useGameRoom";
 import type { useAvalonGame } from "../hooks/useAvalonGame";
+import type { OptionalRole } from "../game/avalonConfig";
 import { AuditLog } from "./AuditLog";
 import { WaitingRoom } from "./WaitingRoom";
 import { AvalonBoard } from "./AvalonBoard";
@@ -56,7 +57,7 @@ export function GameRoom({
                 <WaitingRoom
                     players={connectedPlayers}
                     isHost={isHost}
-                    onStartGame={() => avalon.startGame(connectedPlayers)}
+                    onStartGame={(enabledRoles: Set<OptionalRole>) => avalon.startGame(connectedPlayers, enabledRoles)}
                 />
             )}
 

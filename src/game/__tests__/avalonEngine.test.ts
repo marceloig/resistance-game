@@ -79,11 +79,19 @@ describe("createInitialGameState", () => {
         expect(state.leaderIndex).toBeLessThan(5);
     });
 
-    it("contém exatamente 1 merlin e 1 assassin para 5 jogadores", () => {
-        const state = createInitialGameState(["A", "B", "C", "D", "E"]);
+    it("contém exatamente 1 merlin e 1 assassin para 5 jogadores com papéis ativados", () => {
+        const enabled = new Set(["commander", "assassin"] as const);
+        const state = createInitialGameState(["A", "B", "C", "D", "E"], new Set([...enabled]));
         const roles = state.players.map((p) => p.role);
         expect(roles.filter((r) => r === "merlin")).toHaveLength(1);
         expect(roles.filter((r) => r === "assassin")).toHaveLength(1);
+    });
+
+    it("sem papéis opcionais, usa apenas loyal_servant e minion", () => {
+        const state = createInitialGameState(["A", "B", "C", "D", "E"]);
+        const roles = state.players.map((p) => p.role);
+        expect(roles.filter((r) => r === "loyal_servant")).toHaveLength(3);
+        expect(roles.filter((r) => r === "minion")).toHaveLength(2);
     });
 });
 
@@ -315,16 +323,41 @@ describe("countSuccesses / countFailures", () => {
 });
 
 describe("shouldStartAssassinPhase", () => {
-    it("retorna true com 3 sucessos", () => {
-        expect(shouldStartAssassinPhase(["success", "success", "success", "pending", "pending"])).toBe(true);
+    const playersWithRoles: AvalonPlayer[] = [
+        { name: "A", role: "merlin", loyalty: "good" },
+        { name: "B", role: "assassin", loyalty: "evil" },
+    ];
+
+    it("retorna true com 3 sucessos e Comandante + Assassino presentes", () => {
+        expect(shouldStartAssassinPhase(["success", "success", "success", "pending", "pending"], playersWithRoles)).toBe(true);
     });
 
     it("retorna false com 2 sucessos", () => {
-        expect(shouldStartAssassinPhase(["success", "success", "fail", "pending", "pending"])).toBe(false);
+        expect(shouldStartAssassinPhase(["success", "success", "fail", "pending", "pending"], playersWithRoles)).toBe(false);
     });
 
-    it("retorna true com 4 sucessos", () => {
-        expect(shouldStartAssassinPhase(["success", "success", "success", "success", "pending"])).toBe(true);
+    it("retorna true com 4 sucessos e Comandante + Assassino presentes", () => {
+        expect(shouldStartAssassinPhase(["success", "success", "success", "success", "pending"], playersWithRoles)).toBe(true);
+    });
+
+    it("retorna false com 3 sucessos mas sem Comandante", () => {
+        const noCommander: AvalonPlayer[] = [
+            { name: "A", role: "loyal_servant", loyalty: "good" },
+            { name: "B", role: "assassin", loyalty: "evil" },
+        ];
+        expect(shouldStartAssassinPhase(["success", "success", "success", "pending", "pending"], noCommander)).toBe(false);
+    });
+
+    it("retorna false com 3 sucessos mas sem Assassino", () => {
+        const noAssassin: AvalonPlayer[] = [
+            { name: "A", role: "merlin", loyalty: "good" },
+            { name: "B", role: "minion", loyalty: "evil" },
+        ];
+        expect(shouldStartAssassinPhase(["success", "success", "success", "pending", "pending"], noAssassin)).toBe(false);
+    });
+
+    it("retorna false com 3 sucessos e sem jogadores (jogo básico)", () => {
+        expect(shouldStartAssassinPhase(["success", "success", "success", "pending", "pending"])).toBe(false);
     });
 });
 
