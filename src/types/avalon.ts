@@ -111,6 +111,7 @@ export type AvalonGameEvent =
     | { type: "team_vote_result"; votes: Record<string, TeamVoteChoice>; approved: boolean; rejectedCount: number; newLeader: string; newMission: number }
     | { type: "mission_vote_cast"; playerName: string; vote: MissionVoteChoice }
     | { type: "mission_result"; outcome: MissionOutcome; newLeader: string; newMission: number }
+    | { type: "continue_after_mission"; newLeader: string; newMission: number }
     | { type: "assassin_phase_started" }
     | { type: "assassin_choice"; target: string }
     | { type: "game_over"; winner: Loyalty; reason: string };

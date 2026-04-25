@@ -7,22 +7,25 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "sandbox": "npx ampx sandbox"
   },
   "dependencies": {
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
-    "aws-amplify": "^6.16.4",
     "@cloudscape-design/components": "^3.0.1281",
-    "@cloudscape-design/global-styles": "^1.0.57"
+    "@cloudscape-design/global-styles": "^1.0.57",
+    "aws-amplify": "^6.16.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^6.0.1",
+    "@aws-amplify/backend": "^1.22.0",
+    "@aws-amplify/backend-cli": "^1.8.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.9",
-    "@aws-amplify/backend": "^1.22.0",
-    "@aws-amplify/backend-cli": "^1.8.2"
+    "vitest": "^4.1.5"
   }
 }

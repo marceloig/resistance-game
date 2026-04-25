@@ -12,6 +12,7 @@ import { GameOver } from "./GameOver";
 
 interface AvalonBoardProps {
     state: AvalonLocalState;
+    playerName: string;
     isHost: boolean;
     onConfirmRoles: () => void;
     onProposeTeam: (team: string[]) => void;
@@ -33,6 +34,7 @@ interface AvalonBoardProps {
  */
 export function AvalonBoard({
     state,
+    playerName,
     isHost,
     onConfirmRoles,
     onProposeTeam,
@@ -126,8 +128,10 @@ export function AvalonBoard({
                 return (
                     <AssassinPhase
                         players={state.players}
+                        myName={playerName}
                         isAssassin={state.isAssassin}
                         myLoyalty={state.myLoyalty}
+                        visiblePlayers={state.visiblePlayers}
                         onChooseTarget={onAssassinChoice}
                     />
                 );

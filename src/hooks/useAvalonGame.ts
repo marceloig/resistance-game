@@ -19,6 +19,7 @@ import {
     shouldStartAssassinPhase,
     hasEvilWonByMissions,
     determineWinner,
+    isForcedProposal,
 } from "../game/avalonEngine";
 import type { EventPayload } from "./useEventsConnection";
 
@@ -181,6 +182,39 @@ export function useAvalonGame(
         [myName, publishGameEvent],
     );
 
+    /**
+     * Host avança o jogo após exibir o resultado da missão.
+     * Verifica se o jogo terminou (3 falhas ou 3 sucessos) antes de avançar.
+     */
+    const continueAfterMission = useCallback(async () => {
+        if (!isHost || !gameStateRef.current) return;
+        const gs = gameStateRef.current;
+
+        // Mal venceu por 3 missões falhadas — encerra o jogo
+        if (hasEvilWonByMissions(gs.missionResults)) {
+            const result = determineWinner(gs);
+            gs.phase = "game_over";
+            gs.winner = result.winner;
+            await publishGameEvent({ type: "game_over", winner: result.winner, reason: result.reason });
+            return;
+        }
+
+        // Bem venceu 3 missões — fase do assassino
+        if (shouldStartAssassinPhase(gs.missionResults)) {
+            gs.phase = "assassin_phase";
+            await publishGameEvent({ type: "assassin_phase_started" });
+            return;
+        }
+
+        // Jogo continua — próxima proposta de equipe
+        gs.phase = "team_proposal";
+        await publishGameEvent({
+            type: "continue_after_mission",
+            newLeader: gs.players[gs.leaderIndex].name,
+            newMission: gs.currentMission,
+        });
+    }, [isHost, publishGameEvent]);
+
     /** Assassino escolhe o alvo (tentativa de identificar Merlin). */
     const chooseAssassinTarget = useCallback(
         async (target: string) => {
@@ -216,7 +250,23 @@ export function useAvalonGame(
                 case "team_proposed":
                     gs.proposedTeam = event.team;
                     gs.teamVotes = {};
-                    gs.phase = "team_vote";
+
+                    // Após 4 rejeições consecutivas, a 5ª proposta é aceita automaticamente
+                    if (isForcedProposal(gs.rejectedProposals)) {
+                        gs.phase = "mission_vote";
+                        gs.missionVotes = {};
+                        gs.rejectedProposals = 0;
+                        publishGameEvent({
+                            type: "team_vote_result",
+                            votes: {},
+                            approved: true,
+                            rejectedCount: 0,
+                            newLeader: gs.players[gs.leaderIndex].name,
+                            newMission: gs.currentMission,
+                        });
+                    } else {
+                        gs.phase = "team_vote";
+                    }
                     break;
 
                 case "team_vote_cast": {
@@ -294,33 +344,22 @@ export function useAvalonGame(
             const nextLeaderIdx = nextLeader(gs.leaderIndex, gs.players.length);
             const nextLeaderName = gs.players[nextLeaderIdx].name;
 
+            // Avança o estado interno para a próxima missão (será usado por continueAfterMission)
+            gs.currentMission = nextMissionIdx;
+            gs.leaderIndex = nextLeaderIdx;
+            gs.proposedTeam = [];
+            gs.teamVotes = {};
+            gs.missionVotes = {};
+            // Fase permanece como mission_result até o host clicar "Continuar",
+            // que decidirá se avança para team_proposal, assassin_phase ou game_over
+            gs.phase = "mission_result";
+
             publishGameEvent({
                 type: "mission_result",
                 outcome,
                 newLeader: nextLeaderName,
                 newMission: nextMissionIdx,
             });
-
-            if (hasEvilWonByMissions(gs.missionResults)) {
-                const result = determineWinner(gs);
-                gs.phase = "game_over";
-                gs.winner = result.winner;
-                publishGameEvent({ type: "game_over", winner: result.winner, reason: result.reason });
-                return;
-            }
-
-            if (shouldStartAssassinPhase(gs.missionResults)) {
-                gs.phase = "assassin_phase";
-                publishGameEvent({ type: "assassin_phase_started" });
-                return;
-            }
-
-            gs.currentMission = nextMissionIdx;
-            gs.leaderIndex = nextLeaderIdx;
-            gs.proposedTeam = [];
-            gs.teamVotes = {};
-            gs.missionVotes = {};
-            gs.phase = "team_proposal";
         },
         [publishGameEvent],
     );
@@ -338,6 +377,7 @@ export function useAvalonGame(
         castTeamVote,
         castMissionVote,
         chooseAssassinTarget,
+        continueAfterMission,
         handleGameEvent,
         resetGame,
     };
@@ -440,6 +480,22 @@ function applyEventToLocalState(
                 voteCount: 0,
             };
         }
+
+        case "continue_after_mission":
+            return {
+                ...prev,
+                phase: "team_proposal",
+                proposedTeam: [],
+                teamVoteResult: null,
+                leaderName: event.newLeader,
+                isLeader: event.newLeader === myName,
+                currentMission: event.newMission,
+                requiredTeamSize: event.newMission < 5
+                    ? getTeamSize(prev.players.length, event.newMission)
+                    : prev.requiredTeamSize,
+                hasVoted: false,
+                voteCount: 0,
+            };
 
         case "assassin_phase_started":
             return { ...prev, phase: "assassin_phase" };

@@ -8,8 +8,10 @@ import RadioGroup from "@cloudscape-design/components/radio-group";
 
 interface AssassinPhaseProps {
     players: string[];
+    myName: string;
     isAssassin: boolean;
     myLoyalty: "good" | "evil" | null;
+    visiblePlayers: { name: string; appearsAs: string }[];
     onChooseTarget: (target: string) => void;
 }
 
@@ -22,12 +24,14 @@ interface AssassinPhaseProps {
  * <AssassinPhase players={[...]} isAssassin={true} myLoyalty="evil" onChooseTarget={choose} />
  * ```
  */
-export function AssassinPhase({ players, isAssassin, myLoyalty, onChooseTarget }: AssassinPhaseProps) {
+export function AssassinPhase({ players, myName, isAssassin, myLoyalty, visiblePlayers, onChooseTarget }: AssassinPhaseProps) {
     const [target, setTarget] = useState<string | null>(null);
 
-    // Filtra apenas jogadores do bem como alvos possíveis
-    // (o assassino não sabe quem é quem, mas sabe quem é do mal)
-    const possibleTargets = players;
+    // Exclui o próprio jogador e os malvados conhecidos da lista de alvos
+    const knownEvilNames = new Set(
+        visiblePlayers.filter((p) => p.appearsAs === "evil").map((p) => p.name),
+    );
+    const possibleTargets = players.filter((name) => name !== myName && !knownEvilNames.has(name));
 
     return (
         <Container header={<Header variant="h2">Fase do Assassino</Header>}>

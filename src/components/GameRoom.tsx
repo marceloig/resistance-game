@@ -63,16 +63,14 @@ export function GameRoom({
             {isGameActive && (
                 <AvalonBoard
                     state={localState}
+                    playerName={playerName}
                     isHost={isHost}
                     onConfirmRoles={avalon.confirmRoleReveal}
                     onProposeTeam={avalon.proposeTeam}
                     onTeamVote={avalon.castTeamVote}
                     onMissionVote={avalon.castMissionVote}
                     onAssassinChoice={avalon.chooseAssassinTarget}
-                    onContinueAfterMission={() => {
-                        // Host avança para a próxima fase após exibir resultado
-                        // O estado já foi atualizado pelo evento mission_result
-                    }}
+                    onContinueAfterMission={() => avalon.continueAfterMission()}
                     onPlayAgain={avalon.resetGame}
                 />
             )}
