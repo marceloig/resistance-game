@@ -85,14 +85,35 @@ npm install
 | `npm run test:watch` | Executa testes em modo watch |
 | `npm run sandbox` | Inicia o sandbox Amplify Gen 2 |
 
+## Papéis
+
+O jogo possui papéis **padrão** (sempre ativos) e **opcionais** (selecionados pelo host antes de iniciar).
+
+### Padrão
+
+| Papel | Lado | Habilidade |
+|-------|------|------------|
+| Operativo da Resistência | Resistência | Sem informação especial. |
+| Espião | Espiões | Conhece os outros espiões. |
+
+### Opcionais (toggles do host)
+
+| Toggle | Papéis | Descrição |
+|--------|--------|-----------|
+| Comandante | Comandante (Resistência) | Conhece todos os espiões. Alvo do Assassino. |
+| Assassino | Assassino (Espiões) | Pode eliminar o Comandante após 3 missões bem-sucedidas. |
+| Guarda-Costas + Falso Comandante | Guarda-Costas (Resistência) + Falso Comandante (Espiões) | Guarda-Costas vê Comandante e Falso Comandante sem distinguir. Sempre ativados juntos. |
+
+Sem Comandante + Assassino, a Resistência vence diretamente com 3 missões — sem fase do Assassino.
+
 ## Testes
 
 O projeto usa **Vitest** como framework de testes. A suíte cobre:
 
-### Testes unitários (67 testes)
+### Testes unitários (74 testes)
 
-- **`avalonConfig.test.ts`** — Tamanhos de equipe, missões com 2 falhas, distribuição de papéis, proporção Resistência/Espiões para 5-10 jogadores
-- **`avalonEngine.test.ts`** — Todas as funções do engine: criação de estado, visibilidade por papel, votação de equipe, resolução de missão, rotação de líder, proposta forçada, fase do assassino, determinação do vencedor
+- **`avalonConfig.test.ts`** — Tamanhos de equipe, missões com 2 falhas, distribuição de papéis com e sem papéis opcionais, proporção Resistência/Espiões para 5-10 jogadores
+- **`avalonEngine.test.ts`** — Todas as funções do engine: criação de estado, visibilidade por papel, votação de equipe, resolução de missão, rotação de líder, proposta forçada, fase do assassino condicional, determinação do vencedor
 
 ### Testes de integração (23 testes)
 
