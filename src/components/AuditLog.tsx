@@ -2,15 +2,15 @@ import Container from "@cloudscape-design/components/container";
 import Header from "@cloudscape-design/components/header";
 import SpaceBetween from "@cloudscape-design/components/space-between";
 import Box from "@cloudscape-design/components/box";
-import type { AuditLogEntry } from "../hooks/useGameRoom";
+import type { AuditLogEntry, AuditLogSegment } from "../hooks/useGameRoom";
 
 interface AuditLogProps {
     entries: AuditLogEntry[];
 }
 
 /**
- * Exibe o log de auditoria da sala com entradas e saídas de jogadores.
- * Nome do jogador e código da sala são exibidos em negrito.
+ * Exibe o log de auditoria da sala.
+ * Segmentos marcados como bold são renderizados em negrito.
  *
  * Uso:
  * ```tsx
@@ -31,16 +31,24 @@ export function AuditLog({ entries }: AuditLogProps) {
                             <Box variant="span" color="text-body-secondary" fontSize="body-s">
                                 {formatTime(entry.timestamp)}
                             </Box>
-                            {" Player "}
-                            <Box variant="span" fontWeight="bold">{entry.playerName}</Box>
-                            {` ${entry.action} sala `}
-                            <Box variant="span" fontWeight="bold">{entry.roomCode}</Box>
+                            {" "}
+                            {entry.segments.map((seg, segIdx) => (
+                                <RenderSegment key={segIdx} segment={seg} />
+                            ))}
                         </Box>
                     ))}
                 </SpaceBetween>
             )}
         </Container>
     );
+}
+
+/** Renderiza um segmento de texto: normal ou negrito. */
+function RenderSegment({ segment }: { segment: AuditLogSegment }) {
+    if (typeof segment === "string") {
+        return <>{segment}</>;
+    }
+    return <Box variant="span" fontWeight="bold">{segment.bold}</Box>;
 }
 
 /** Formata um ISO timestamp para hora local legível (HH:MM:SS). */

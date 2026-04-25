@@ -7,7 +7,11 @@ import { GameLobby } from "./components/GameLobby";
 import { GameRoom } from "./components/GameRoom";
 
 export default function App() {
-    const { room, auditLog, createRoom, joinRoom, leaveRoom, connection } = useGameRoom();
+    const {
+        room, auditLog, connectedPlayers,
+        createRoom, joinRoom, leaveRoom,
+        connection, avalon,
+    } = useGameRoom();
 
     const statusLabel = room.phase === "connected"
         ? `${room.playerName} | Sala: ${room.roomCode} (${connection.status})`
@@ -19,7 +23,7 @@ export default function App() {
                 <TopNavigation
                     identity={{
                         href: "/",
-                        title: "Amplify Game Base",
+                        title: "Avalon — The Resistance",
                     }}
                     utilities={[
                         {
@@ -39,9 +43,9 @@ export default function App() {
                         header={
                             <Header
                                 variant="h1"
-                                description="Crie ou entre em uma sala para jogar em tempo real"
+                                description="Jogo de dedução social em tempo real"
                             >
-                                Amplify Game Base
+                                Avalon — The Resistance
                             </Header>
                         }
                     >
@@ -51,8 +55,11 @@ export default function App() {
                             <GameRoom
                                 roomCode={room.roomCode!}
                                 playerName={room.playerName!}
+                                isHost={room.isHost}
                                 connectionStatus={connection.status}
+                                connectedPlayers={connectedPlayers}
                                 auditLog={auditLog}
+                                avalon={avalon}
                                 onLeave={leaveRoom}
                             />
                         )}

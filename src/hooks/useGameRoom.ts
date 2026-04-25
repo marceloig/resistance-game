@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useEventsConnection, type EventPayload } from "./useEventsConnection";
+import { useAvalonGame } from "./useAvalonGame";
+import type { AvalonGameEvent } from "../types/avalon";
 
 export type RoomPhase = "lobby" | "connected";
 
@@ -16,11 +18,12 @@ export interface RoomSystemEvent {
 
 /** Entrada no log de auditoria exibido na UI. */
 export interface AuditLogEntry {
-    playerName: string;
-    roomCode: string;
-    action: "entrou na" | "saiu da";
+    /** Segmentos da mensagem: texto normal ou { bold: "texto" } para negrito. */
+    segments: AuditLogSegment[];
     timestamp: string;
 }
+
+export type AuditLogSegment = string | { bold: string };
 
 interface RoomState {
     /** Código de 5 caracteres que identifica a sala */
@@ -29,6 +32,8 @@ interface RoomState {
     playerName: string | null;
     /** Fase atual: lobby (aguardando) ou connected (na sala) */
     phase: RoomPhase;
+    /** Indica se este jogador é o host (criador da sala). */
+    isHost: boolean;
 }
 
 /**
@@ -64,12 +69,22 @@ function isSystemEvent(payload: unknown): payload is { event: RoomSystemEvent } 
     return evt.type === "player_joined" || evt.type === "player_left";
 }
 
+/** Verifica se um payload recebido é um evento de jogo Avalon. */
+function isGameEvent(payload: unknown): payload is { event: { gameEvent: AvalonGameEvent } } {
+    if (typeof payload !== "object" || payload === null) return false;
+    const outer = payload as Record<string, unknown>;
+    if (typeof outer.event !== "object" || outer.event === null) return false;
+    const evt = outer.event as Record<string, unknown>;
+    return "gameEvent" in evt;
+}
+
 /** Converte um evento de sistema em uma entrada estruturada para o log de auditoria. */
 function toAuditEntry(evt: RoomSystemEvent): AuditLogEntry {
+    const action = evt.type === "player_joined" ? "entrou na" : "saiu da";
     return {
-        playerName: evt.playerName,
-        roomCode: evt.roomCode,
-        action: evt.type === "player_joined" ? "entrou na" : "saiu da",
+        segments: [
+            "Player ", { bold: evt.playerName }, ` ${action} sala `, { bold: evt.roomCode },
+        ],
         timestamp: evt.timestamp,
     };
 }
@@ -82,18 +97,21 @@ function buildSystemPayload(type: RoomEventType, playerName: string, roomCode: s
 /**
  * Hook para gerenciar a criação e entrada em salas de jogo.
  *
- * Publica eventos de join/leave no canal e mantém um log de auditoria
- * com as entradas e saídas de jogadores.
+ * Publica eventos de join/leave no canal, mantém um log de auditoria,
+ * e integra o jogo Avalon via useAvalonGame.
  *
  * Uso:
  * ```ts
- * const { room, auditLog, createRoom, joinRoom, leaveRoom } = useGameRoom();
+ * const { room, auditLog, avalon, ... } = useGameRoom();
  * ```
  */
 export function useGameRoom() {
-    const [room, setRoom] = useState<RoomState>({ roomCode: null, playerName: null, phase: "lobby" });
+    const [room, setRoom] = useState<RoomState>({
+        roomCode: null, playerName: null, phase: "lobby", isHost: false,
+    });
     const [channelName, setChannelName] = useState<string | undefined>();
     const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
+    const [connectedPlayers, setConnectedPlayers] = useState<string[]>([]);
 
     // Garante que o player_joined é publicado apenas uma vez por sessão de sala
     const hasPublishedJoinRef = useRef(false);
@@ -106,7 +124,73 @@ export function useGameRoom() {
 
     const handleEvent = useCallback((event: unknown) => {
         if (isSystemEvent(event)) {
-            setAuditLog((prev) => [...prev, toAuditEntry(event.event)]);
+            const sysEvt = event.event;
+            setAuditLog((prev) => [...prev, toAuditEntry(sysEvt)]);
+
+            // Atualiza lista de jogadores conectados
+            if (sysEvt.type === "player_joined") {
+                setConnectedPlayers((prev) =>
+                    prev.includes(sysEvt.playerName) ? prev : [...prev, sysEvt.playerName],
+                );
+            } else if (sysEvt.type === "player_left") {
+                setConnectedPlayers((prev) => prev.filter((n) => n !== sysEvt.playerName));
+            }
+        }
+
+        if (isGameEvent(event)) {
+            const gameEvt = event.event.gameEvent;
+            const now = new Date().toISOString();
+            const roomCode = roomRef.current.roomCode ?? "";
+
+            // Loga quando um jogador recebe seu papel (sem revelar qual papel)
+            if (gameEvt.type === "role_assigned") {
+                setAuditLog((prev) => [...prev, {
+                    segments: [
+                        "Player ", { bold: gameEvt.playerName }, " recebeu seu papel na sala ", { bold: roomCode },
+                    ],
+                    timestamp: now,
+                }]);
+            }
+
+            // Loga quem é o líder da missão
+            if (gameEvt.type === "role_reveal_complete" || gameEvt.type === "team_vote_result") {
+                // O líder será logado quando a proposta de equipe for feita
+            }
+
+            // Loga a proposta de equipe: quem é o líder e quem foi escolhido
+            if (gameEvt.type === "team_proposed") {
+                setAuditLog((prev) => [
+                    ...prev,
+                    {
+                        segments: [
+                            { bold: gameEvt.leader }, " é o líder da Missão ", { bold: String(gameEvt.missionIndex + 1) },
+                        ],
+                        timestamp: now,
+                    },
+                    {
+                        segments: [
+                            { bold: gameEvt.leader }, " escolheu a equipe: ", { bold: gameEvt.team.join(", ") },
+                        ],
+                        timestamp: now,
+                    },
+                ]);
+            }
+
+            // Loga o resultado da missão
+            if (gameEvt.type === "mission_result") {
+                const { outcome } = gameEvt;
+                const resultLabel = outcome.result === "success" ? "✓ Sucesso" : "✗ Falha";
+                setAuditLog((prev) => [...prev, {
+                    segments: [
+                        "Missão ", { bold: String(outcome.missionIndex + 1) },
+                        ": ", { bold: resultLabel },
+                        ` (${outcome.successCount} sucesso, ${outcome.failCount} falha)`,
+                    ],
+                    timestamp: now,
+                }]);
+            }
+
+            avalonHandleRef.current?.(gameEvt);
         }
     }, []);
 
@@ -114,13 +198,26 @@ export function useGameRoom() {
     const connectionRef = useRef(connection);
     connectionRef.current = connection;
 
+    // Avalon game hook
+    const avalon = useAvalonGame(
+        room.playerName ?? "",
+        room.isHost,
+        connection.publish,
+        channelName,
+    );
+
+    // Ref para o handler de eventos do Avalon (evita dependência circular)
+    const avalonHandleRef = useRef(avalon.handleGameEvent);
+    avalonHandleRef.current = avalon.handleGameEvent;
+
     /** Cria uma nova sala com código aleatório e conecta ao canal. */
     const createRoom = useCallback((playerName: string) => {
         const code = generateRoomCode();
         hasPublishedJoinRef.current = false;
         setAuditLog([]);
+        setConnectedPlayers([]);
         setChannelName(buildChannelName(code));
-        setRoom({ roomCode: code, playerName, phase: "connected" });
+        setRoom({ roomCode: code, playerName, phase: "connected", isHost: true });
     }, []);
 
     /**
@@ -134,8 +231,9 @@ export function useGameRoom() {
         }
         hasPublishedJoinRef.current = false;
         setAuditLog([]);
+        setConnectedPlayers([]);
         setChannelName(buildChannelName(normalized));
-        setRoom({ roomCode: normalized, playerName, phase: "connected" });
+        setRoom({ roomCode: normalized, playerName, phase: "connected", isHost: false });
     }, []);
 
     /** Publica player_left, desconecta do canal e volta ao lobby. */
@@ -153,11 +251,13 @@ export function useGameRoom() {
         }
 
         connectionRef.current.disconnect();
+        avalon.resetGame();
         hasPublishedJoinRef.current = false;
         setChannelName(undefined);
         setAuditLog([]);
-        setRoom({ roomCode: null, playerName: null, phase: "lobby" });
-    }, []);
+        setConnectedPlayers([]);
+        setRoom({ roomCode: null, playerName: null, phase: "lobby", isHost: false });
+    }, [avalon]);
 
     // Publica player_joined exatamente uma vez quando a conexão fica "connected"
     useEffect(() => {
@@ -178,8 +278,6 @@ export function useGameRoom() {
             if (!playerName || !roomCode || !channel) return;
 
             const payload = buildSystemPayload("player_left", playerName, roomCode);
-
-            // Fallback: tenta publicar via HTTP (best-effort, pode não completar)
             connectionRef.current.publish(channel, payload as unknown as EventPayload).catch(() => {});
         }
 
@@ -190,9 +288,11 @@ export function useGameRoom() {
     return {
         room,
         auditLog,
+        connectedPlayers,
         createRoom,
         joinRoom,
         leaveRoom,
         connection,
+        avalon,
     };
 }
