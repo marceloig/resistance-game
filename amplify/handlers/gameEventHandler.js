@@ -8,7 +8,15 @@
  * - Persistir estado autoritativo do jogo para recuperação do host
  * - Rastrear jogadores conectados na sala de espera
  *
- * Usa o runtime JavaScript do AppSync (@aws-appsync/utils).
+ * Usa o runtime APPSYNC_JS do AppSync (@aws-appsync/utils).
+ *
+ * Logging: usa console.log/console.error (suportados pelo APPSYNC_JS runtime).
+ * Logs aparecem no CloudWatch quando logging está habilitado na Event API.
+ *
+ * Limitações do APPSYNC_JS runtime:
+ * - Sem try/catch/throw/while/continue
+ * - Sem util.log (usar console.log/console.error)
+ * - Sem promises/async
  */
 import * as ddb from '@aws-appsync/utils/dynamodb'
 import { util, runtime } from '@aws-appsync/utils'
@@ -22,11 +30,18 @@ export const onPublish = {
         if (!payload) return runtime.earlyReturn(ctx.events)
 
         const roomCode = extractRoomCode(ctx.info.channel.path)
+        const eventType = resolveEventType(payload)
+
+        console.log(JSON.stringify({ action: 'request_start', roomCode, eventType }))
 
         // Evento de sistema: player_joined
         if (payload.type === 'player_joined') {
             if (payload.isHost) {
-                // Host criando a sala — salva registro inicial no DynamoDB
+                console.log(JSON.stringify({
+                    action: 'host_creating_room',
+                    roomCode,
+                    hostName: payload.playerName,
+                }))
                 return ddb.put({
                     key: { roomCode },
                     item: {
@@ -38,12 +53,21 @@ export const onPublish = {
                     },
                 })
             }
-            // Jogador comum — busca a sala para verificar se está bloqueada
+            console.log(JSON.stringify({
+                action: 'player_joining',
+                roomCode,
+                playerName: payload.playerName,
+            }))
             return ddb.get({ key: { roomCode } })
         }
 
         // Evento de sistema: player_left — verifica se é o host saindo
         if (payload.type === 'player_left') {
+            console.log(JSON.stringify({
+                action: 'player_leaving',
+                roomCode,
+                playerName: payload.playerName,
+            }))
             return ddb.get({ key: { roomCode } })
         }
 
@@ -53,41 +77,80 @@ export const onPublish = {
             const players = gameState
                 ? gameState.players.map((p) => p.name)
                 : []
-            return ddb.update({
-                key: { roomCode },
+            console.log(JSON.stringify({
+                action: 'game_started',
+                roomCode,
+                playerCount: players.length,
+                players,
+            }))
+            return {
+                operation: 'UpdateItem',
+                key: util.dynamodb.toMapValues({ roomCode }),
                 update: {
-                    status: { value: 'active' },
-                    players: { value: players },
-                    updatedAt: { value: util.time.nowISO8601() },
+                    expression: 'SET #st = :st, #pl = :pl, #ua = :ua',
+                    expressionNames: { '#st': 'status', '#pl': 'players', '#ua': 'updatedAt' },
+                    expressionValues: util.dynamodb.toMapValues({
+                        ':st': 'active',
+                        ':pl': players,
+                        ':ua': util.time.nowISO8601(),
+                    }),
                 },
-            })
+            }
         }
 
         // Evento de jogo: state_persist — host persiste estado autoritativo completo
+        // Serializa como JSON string para evitar problemas de marshalling do DynamoDB.
+        // Usa UpdateItem raw com expressionNames para evitar conflitos com palavras
+        // reservadas e problemas do helper ddb.update() com certos valores.
         if (payload.gameEvent && payload.gameEvent.type === 'state_persist') {
             const gameState = payload.gameEvent.state || null
-            return ddb.update({
-                key: { roomCode },
+            const serialized = gameState ? JSON.stringify(gameState) : null
+            const stateSize = serialized ? serialized.length : 0
+            console.log(JSON.stringify({
+                action: 'state_persist',
+                roomCode,
+                phase: gameState ? gameState.phase : null,
+                currentMission: gameState ? gameState.currentMission : null,
+                stateSizeBytes: stateSize,
+            }))
+            return {
+                operation: 'UpdateItem',
+                key: util.dynamodb.toMapValues({ roomCode }),
                 update: {
-                    gameState: { value: gameState },
-                    updatedAt: { value: util.time.nowISO8601() },
+                    expression: 'SET #ss = :ss, #ua = :ua',
+                    expressionNames: { '#ss': 'savedState', '#ua': 'updatedAt' },
+                    expressionValues: util.dynamodb.toMapValues({
+                        ':ss': serialized,
+                        ':ua': util.time.nowISO8601(),
+                    }),
                 },
-            })
+            }
         }
 
         // Evento de jogo: game_over — marca a sala como finalizada
         if (payload.gameEvent && payload.gameEvent.type === 'game_over') {
-            return ddb.update({
-                key: { roomCode },
+            console.log(JSON.stringify({
+                action: 'game_over',
+                roomCode,
+                winner: payload.gameEvent.winner,
+                reason: payload.gameEvent.reason,
+            }))
+            return {
+                operation: 'UpdateItem',
+                key: util.dynamodb.toMapValues({ roomCode }),
                 update: {
-                    status: { value: 'finished' },
-                    gameState: { value: null },
-                    updatedAt: { value: util.time.nowISO8601() },
+                    expression: 'SET #st = :st, #ua = :ua REMOVE #ss',
+                    expressionNames: { '#st': 'status', '#ss': 'savedState', '#ua': 'updatedAt' },
+                    expressionValues: util.dynamodb.toMapValues({
+                        ':st': 'finished',
+                        ':ua': util.time.nowISO8601(),
+                    }),
                 },
-            })
+            }
         }
 
         // Outros eventos: passa direto sem acessar o DynamoDB
+        console.log(JSON.stringify({ action: 'passthrough', roomCode, eventType }))
         return runtime.earlyReturn(ctx.events)
     },
 
@@ -96,6 +159,28 @@ export const onPublish = {
         if (!event) return ctx.events
 
         const payload = event.payload
+        const roomCode = extractRoomCode(ctx.info.channel.path)
+        const eventType = resolveEventType(payload)
+
+        // Verifica se houve erro na operação DynamoDB (request phase)
+        if (ctx.error) {
+            console.error(JSON.stringify({
+                action: 'dynamodb_error',
+                roomCode,
+                eventType,
+                errorMessage: ctx.error.message,
+                errorType: ctx.error.type,
+            }))
+            // Retransmite o evento original para não bloquear o fluxo
+            return ctx.events
+        }
+
+        console.log(JSON.stringify({
+            action: 'response_ok',
+            roomCode,
+            eventType,
+            hasResult: ctx.result !== null && ctx.result !== undefined,
+        }))
 
         // state_persist é interno — não retransmite para os clientes
         if (payload && payload.gameEvent && payload.gameEvent.type === 'state_persist') {
@@ -109,6 +194,11 @@ export const onPublish = {
         if (payload && payload.type === 'player_left') {
             const room = ctx.result
             if (room && room.hostName === payload.playerName) {
+                console.log(JSON.stringify({
+                    action: 'host_left_room_closed',
+                    roomCode,
+                    hostName: payload.playerName,
+                }))
                 return ctx.events.map((e) => ({
                     ...e,
                     payload: {
@@ -119,26 +209,22 @@ export const onPublish = {
                     },
                 }))
             }
-            // Non-host saiu — passa o evento normalmente
             return ctx.events
         }
 
         // Resposta para player_joined
         if (payload && payload.type === 'player_joined') {
-            // Host criando a sala — DynamoDB put já executou, passa o evento adiante
             if (payload.isHost) {
                 return ctx.events
             }
 
             const room = ctx.result
 
-            // Sala ativa — reconexão ou bloqueio
             if (room && room.status === 'active') {
-                return handleActiveRoomJoin(ctx, room)
+                return handleActiveRoomJoin(ctx, room, roomCode)
             }
         }
 
-        // Para todos os outros casos, retransmite os eventos normalmente
         return ctx.events
     },
 }
@@ -148,12 +234,17 @@ export const onPublish = {
  * Jogadores conhecidos reconectam (host recebe estado persistido).
  * Jogadores desconhecidos são bloqueados.
  */
-function handleActiveRoomJoin(ctx, room) {
+function handleActiveRoomJoin(ctx, room, roomCode) {
     const payload = ctx.events[0].payload
     const playerName = payload.playerName
     const isKnownPlayer = room.players && room.players.includes(playerName)
 
     if (!isKnownPlayer) {
+        console.log(JSON.stringify({
+            action: 'player_blocked_room_locked',
+            roomCode,
+            playerName,
+        }))
         return ctx.events.map((e) => ({
             ...e,
             payload: {
@@ -166,10 +257,20 @@ function handleActiveRoomJoin(ctx, room) {
     }
 
     // Jogador reconhecido — permite reconexão, inclui flag de host e estado persistido
-    // NOTA: gameState inclui papéis de todos os jogadores. Embora seja broadcast no canal,
-    // cada cliente extrai apenas o próprio papel. Em um jogo entre amigos, o risco de
-    // inspeção via dev tools é aceitável (mesmo modelo de segurança do state_sync).
     const isHost = room.hostName === playerName
+    const rawState = room.savedState || null
+    // savedState é armazenado como JSON string no DynamoDB — deserializa se necessário
+    const gameState = typeof rawState === 'string' ? JSON.parse(rawState) : rawState
+
+    console.log(JSON.stringify({
+        action: 'player_reconnected',
+        roomCode,
+        playerName,
+        isHost,
+        hasGameState: gameState !== null,
+        rawStateType: typeof rawState,
+    }))
+
     return ctx.events.map((e) => ({
         ...e,
         payload: {
@@ -178,7 +279,7 @@ function handleActiveRoomJoin(ctx, room) {
             roomCode: e.payload.roomCode,
             timestamp: e.payload.timestamp,
             isHost,
-            gameState: room.gameState || null,
+            gameState,
         },
     }))
 }
@@ -187,7 +288,19 @@ function handleActiveRoomJoin(ctx, room) {
 function extractRoomCode(channelPath) {
     const segments = channelPath.split('/')
     const channelName = segments[segments.length - 1] || ''
-    return channelName.startsWith('game-')
-        ? channelName.substring(5)
-        : channelName
+    if (channelName.startsWith('game-')) {
+        return channelName.substring(5)
+    }
+    return channelName
+}
+
+/**
+ * Identifica o tipo do evento para logging.
+ * Retorna uma string descritiva do tipo de evento recebido.
+ */
+function resolveEventType(payload) {
+    if (!payload) return 'empty'
+    if (payload.type) return payload.type
+    if (payload.gameEvent) return 'game:' + payload.gameEvent.type
+    return 'unknown'
 }
