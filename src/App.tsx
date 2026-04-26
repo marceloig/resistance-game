@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import AppLayout from "@cloudscape-design/components/app-layout";
 import ContentLayout from "@cloudscape-design/components/content-layout";
 import Header from "@cloudscape-design/components/header";
@@ -8,8 +8,11 @@ import SpaceBetween from "@cloudscape-design/components/space-between";
 import { useGameRoom } from "./hooks/useGameRoom";
 import { GameLobby } from "./components/GameLobby";
 import { GameRoom } from "./components/GameRoom";
+import { HowToPlayModal } from "./components/HowToPlay";
 
 export default function App() {
+    const [howToPlayVisible, setHowToPlayVisible] = useState(false);
+
     const {
         room, roomLocked, auditLog, connectedPlayers,
         createRoom, joinRoom, leaveRoom,
@@ -39,12 +42,23 @@ export default function App() {
                     utilities={[
                         {
                             type: "button",
+                            text: "Como Jogar",
+                            iconName: "status-info",
+                            onClick: () => setHowToPlayVisible(true),
+                        },
+                        {
+                            type: "button",
                             text: statusLabel,
                             iconName: room.phase === "connected" ? "status-positive" : "status-stopped",
                         },
                     ]}
                 />
             </div>
+
+            <HowToPlayModal
+                visible={howToPlayVisible}
+                onDismiss={() => setHowToPlayVisible(false)}
+            />
 
             <AppLayout
                 navigationHide
