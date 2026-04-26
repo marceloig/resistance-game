@@ -65,7 +65,7 @@ function buildChannelName(code: string): string {
 }
 
 /** Verifica se um payload recebido é um evento de sistema. */
-function isSystemEvent(payload: unknown): payload is { event: RoomSystemEvent } {
+export function isSystemEvent(payload: unknown): payload is { event: RoomSystemEvent } {
     if (typeof payload !== "object" || payload === null) return false;
     const outer = payload as Record<string, unknown>;
     if (typeof outer.event !== "object" || outer.event === null) return false;
@@ -79,13 +79,13 @@ function isSystemEvent(payload: unknown): payload is { event: RoomSystemEvent } 
  * Extrai o gameState persistido de um evento player_reconnected (se presente).
  * Retornado pelo backend quando o host reconecta.
  */
-function extractReconnectGameState(event: { event: RoomSystemEvent }): unknown | null {
+export function extractReconnectGameState(event: { event: RoomSystemEvent }): unknown | null {
     const raw = event.event as unknown as Record<string, unknown>;
     return raw.gameState ?? null;
 }
 
 /** Verifica se um payload recebido é um evento de jogo Avalon. */
-function isGameEvent(payload: unknown): payload is { event: { gameEvent: AvalonGameEvent } } {
+export function isGameEvent(payload: unknown): payload is { event: { gameEvent: AvalonGameEvent } } {
     if (typeof payload !== "object" || payload === null) return false;
     const outer = payload as Record<string, unknown>;
     if (typeof outer.event !== "object" || outer.event === null) return false;
@@ -94,7 +94,7 @@ function isGameEvent(payload: unknown): payload is { event: { gameEvent: AvalonG
 }
 
 /** Converte um evento de sistema em uma entrada estruturada para o log de auditoria. */
-function toAuditEntry(evt: RoomSystemEvent): AuditLogEntry {
+export function toAuditEntry(evt: RoomSystemEvent): AuditLogEntry {
     const actionMap: Record<string, string> = {
         player_joined: "entrou na",
         player_left: "saiu da",
@@ -110,12 +110,12 @@ function toAuditEntry(evt: RoomSystemEvent): AuditLogEntry {
 }
 
 /** Cria o payload de um evento de sistema. */
-function buildSystemPayload(type: RoomEventType, playerName: string, roomCode: string): RoomSystemEvent {
+export function buildSystemPayload(type: RoomEventType, playerName: string, roomCode: string): RoomSystemEvent {
     return { type, playerName, roomCode, timestamp: new Date().toISOString() };
 }
 
 /** Converte um evento de jogo em entradas de auditoria (se aplicável). */
-function buildGameAuditEntries(gameEvt: AvalonGameEvent, roomCode: string): AuditLogEntry[] {
+export function buildGameAuditEntries(gameEvt: AvalonGameEvent, roomCode: string): AuditLogEntry[] {
     const now = new Date().toISOString();
 
     switch (gameEvt.type) {
