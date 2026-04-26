@@ -680,4 +680,305 @@ describe("Fluxo completo do jogo — integração", () => {
             expect(state.missionResults).toEqual(["pending", "pending", "pending", "pending", "pending"]);
         });
     });
+
+    describe("Reconexão de jogador via state_sync", () => {
+        /** Cria um state_sync para um jogador específico a partir do estado completo. */
+        function buildStateSync(
+            targetPlayer: string,
+            gs: AvalonGameState,
+        ): AvalonGameEvent {
+            const player = gs.players.find((p) => p.name === targetPlayer)!;
+            const visible = getVisiblePlayers(targetPlayer, gs.players);
+            return {
+                type: "state_sync",
+                targetPlayer,
+                state: {
+                    ...gs,
+                    players: gs.players.map((p) => ({ name: p.name })),
+                },
+                role: player.role!,
+                loyalty: player.loyalty!,
+                visiblePlayers: visible,
+            };
+        }
+
+        it("state_sync restaura estado completo para o jogador alvo", () => {
+            const gs = fixedGameState({
+                phase: "team_proposal",
+                currentMission: 2,
+                leaderIndex: 1,
+                rejectedProposals: 1,
+                missionResults: ["success", "fail", "pending", "pending", "pending"],
+                missionHistory: [
+                    { missionIndex: 0, teamMembers: ["Alice", "Bob"], successCount: 2, failCount: 0, result: "success" },
+                    { missionIndex: 1, teamMembers: ["Alice", "Dave"], successCount: 1, failCount: 1, result: "fail" },
+                ],
+            });
+
+            const syncEvent = buildStateSync("Alice", gs);
+            const state = applyEventToLocalState(INITIAL_LOCAL_STATE, syncEvent, "Alice");
+
+            expect(state.phase).toBe("team_proposal");
+            expect(state.currentMission).toBe(2);
+            expect(state.leaderName).toBe("Bob");
+            expect(state.isLeader).toBe(false);
+            expect(state.rejectedProposals).toBe(1);
+            expect(state.missionResults).toEqual(["success", "fail", "pending", "pending", "pending"]);
+            expect(state.missionHistory).toHaveLength(2);
+            expect(state.myRole).toBe("merlin");
+            expect(state.myLoyalty).toBe("good");
+            expect(state.players).toEqual(PLAYER_NAMES);
+        });
+
+        it("state_sync restaura visibilidade correta para Merlin", () => {
+            const gs = fixedGameState({ phase: "team_proposal" });
+            const syncEvent = buildStateSync("Alice", gs);
+            const state = applyEventToLocalState(INITIAL_LOCAL_STATE, syncEvent, "Alice");
+
+            const evilVisible = state.visiblePlayers.filter((p) => p.appearsAs === "evil");
+            expect(evilVisible).toHaveLength(2);
+            expect(evilVisible.map((p) => p.name).sort()).toEqual(["Dave", "Eve"]);
+        });
+
+        it("state_sync restaura visibilidade correta para Servo Leal", () => {
+            const gs = fixedGameState({ phase: "team_proposal" });
+            const syncEvent = buildStateSync("Carol", gs);
+            const state = applyEventToLocalState(INITIAL_LOCAL_STATE, syncEvent, "Carol");
+
+            expect(state.myRole).toBe("loyal_servant");
+            const nonUnknown = state.visiblePlayers.filter((p) => p.appearsAs !== "unknown");
+            expect(nonUnknown).toHaveLength(0);
+        });
+
+        it("state_sync é ignorado para jogadores que não são o alvo", () => {
+            const gs = fixedGameState({ phase: "team_proposal", currentMission: 3 });
+            const syncEvent = buildStateSync("Alice", gs);
+
+            const bobState: AvalonLocalState = {
+                ...INITIAL_LOCAL_STATE,
+                phase: "team_vote",
+                currentMission: 1,
+            };
+            const result = applyEventToLocalState(bobState, syncEvent, "Bob");
+
+            expect(result.phase).toBe("team_vote");
+            expect(result.currentMission).toBe(1);
+        });
+
+        it("state_sync restaura isOnTeam quando há equipe proposta", () => {
+            const gs = fixedGameState({
+                phase: "team_vote",
+                proposedTeam: ["Alice", "Dave"],
+            });
+            const syncEvent = buildStateSync("Alice", gs);
+            const state = applyEventToLocalState(INITIAL_LOCAL_STATE, syncEvent, "Alice");
+
+            expect(state.isOnTeam).toBe(true);
+            expect(state.proposedTeam).toEqual(["Alice", "Dave"]);
+        });
+
+        it("state_sync restaura isOnTeam como false quando jogador não está na equipe", () => {
+            const gs = fixedGameState({
+                phase: "team_vote",
+                proposedTeam: ["Alice", "Dave"],
+            });
+            const syncEvent = buildStateSync("Carol", gs);
+            const state = applyEventToLocalState(INITIAL_LOCAL_STATE, syncEvent, "Carol");
+
+            expect(state.isOnTeam).toBe(false);
+        });
+
+        it("state_sync restaura isLeader corretamente", () => {
+            const gs = fixedGameState({
+                phase: "team_proposal",
+                leaderIndex: 2,
+            });
+            const syncEvent = buildStateSync("Carol", gs);
+            const state = applyEventToLocalState(INITIAL_LOCAL_STATE, syncEvent, "Carol");
+
+            expect(state.isLeader).toBe(true);
+            expect(state.leaderName).toBe("Carol");
+        });
+
+        it("state_sync restaura isAssassin para o Assassino", () => {
+            const gs = fixedGameState({ phase: "team_proposal" });
+            const syncEvent = buildStateSync("Dave", gs);
+            const state = applyEventToLocalState(INITIAL_LOCAL_STATE, syncEvent, "Dave");
+
+            expect(state.isAssassin).toBe(true);
+            expect(state.myRole).toBe("assassin");
+            expect(state.myLoyalty).toBe("evil");
+        });
+
+        it("state_sync restaura requiredTeamSize para a missão atual", () => {
+            const gs = fixedGameState({
+                phase: "team_proposal",
+                currentMission: 3,
+            });
+            const syncEvent = buildStateSync("Alice", gs);
+            const state = applyEventToLocalState(INITIAL_LOCAL_STATE, syncEvent, "Alice");
+
+            expect(state.requiredTeamSize).toBe(getTeamSize(5, 3));
+        });
+
+        it("state_sync reseta hasVoted e voteCount", () => {
+            const gs = fixedGameState({ phase: "team_vote" });
+            const initial: AvalonLocalState = {
+                ...INITIAL_LOCAL_STATE,
+                hasVoted: true,
+                voteCount: 3,
+            };
+            const syncEvent = buildStateSync("Alice", gs);
+            const state = applyEventToLocalState(initial, syncEvent, "Alice");
+
+            expect(state.hasVoted).toBe(false);
+            expect(state.voteCount).toBe(0);
+        });
+
+        it("state_sync restaura estado na fase assassin_phase", () => {
+            const gs = fixedGameState({
+                phase: "assassin_phase",
+                missionResults: ["success", "success", "success", "fail", "fail"],
+            });
+            const syncEvent = buildStateSync("Dave", gs);
+            const state = applyEventToLocalState(INITIAL_LOCAL_STATE, syncEvent, "Dave");
+
+            expect(state.phase).toBe("assassin_phase");
+            expect(state.isAssassin).toBe(true);
+            expect(state.missionResults.filter((r) => r === "success")).toHaveLength(3);
+        });
+
+        it("state_sync restaura estado na fase game_over", () => {
+            const gs = fixedGameState({
+                phase: "game_over",
+                winner: "good",
+                missionResults: ["success", "success", "success", "fail", "pending"],
+            });
+            const syncEvent = buildStateSync("Alice", gs);
+            const state = applyEventToLocalState(INITIAL_LOCAL_STATE, syncEvent, "Alice");
+
+            expect(state.phase).toBe("game_over");
+            expect(state.winner).toBe("good");
+        });
+
+        it("state_sync restaura estado na fase mission_result", () => {
+            const gs = fixedGameState({
+                phase: "mission_result",
+                currentMission: 2,
+                missionResults: ["success", "fail", "pending", "pending", "pending"],
+                missionHistory: [
+                    { missionIndex: 0, teamMembers: ["Alice", "Bob"], successCount: 2, failCount: 0, result: "success" },
+                    { missionIndex: 1, teamMembers: ["Alice", "Dave"], successCount: 1, failCount: 1, result: "fail" },
+                ],
+            });
+            const syncEvent = buildStateSync("Bob", gs);
+            const state = applyEventToLocalState(INITIAL_LOCAL_STATE, syncEvent, "Bob");
+
+            expect(state.phase).toBe("mission_result");
+            expect(state.missionHistory).toHaveLength(2);
+        });
+    });
+
+    describe("state_persist é no-op para estado local", () => {
+        it("state_persist não altera o estado local", () => {
+            const gs = fixedGameState({ phase: "team_proposal", currentMission: 2 });
+            const initial: AvalonLocalState = {
+                ...INITIAL_LOCAL_STATE,
+                phase: "team_vote",
+                currentMission: 1,
+                players: PLAYER_NAMES,
+            };
+
+            const state = applyEventToLocalState(initial, {
+                type: "state_persist",
+                state: gs,
+            }, "Alice");
+
+            expect(state.phase).toBe("team_vote");
+            expect(state.currentMission).toBe(1);
+        });
+    });
+
+    describe("Reconexão durante fluxo de jogo completo", () => {
+        it("jogador reconecta durante team_vote e vê estado correto", () => {
+            const gs = fixedGameState();
+            const team = ["Alice", "Bob"];
+
+            const events: AvalonGameEvent[] = [
+                gameStartedEvent(gs),
+                ...roleAssignedEvents(gs),
+                { type: "role_reveal_complete" },
+                { type: "team_proposed", leader: "Alice", team, missionIndex: 0 },
+                { type: "team_vote_cast", playerName: "Alice", vote: "approve" },
+                { type: "team_vote_cast", playerName: "Bob", vote: "approve" },
+            ];
+
+            const carolState = applyEvents(events, "Carol");
+            expect(carolState.phase).toBe("team_vote");
+            expect(carolState.voteCount).toBe(2);
+
+            const syncState = fixedGameState({
+                phase: "team_vote",
+                proposedTeam: team,
+                leaderIndex: 0,
+            });
+            const syncEvent: AvalonGameEvent = {
+                type: "state_sync",
+                targetPlayer: "Carol",
+                state: {
+                    ...syncState,
+                    players: syncState.players.map((p) => ({ name: p.name })),
+                },
+                role: "loyal_servant",
+                loyalty: "good",
+                visiblePlayers: [],
+            };
+
+            const restoredState = applyEventToLocalState(INITIAL_LOCAL_STATE, syncEvent, "Carol");
+            expect(restoredState.phase).toBe("team_vote");
+            expect(restoredState.myRole).toBe("loyal_servant");
+            expect(restoredState.proposedTeam).toEqual(team);
+            expect(restoredState.hasVoted).toBe(false);
+            expect(restoredState.voteCount).toBe(0);
+        });
+
+        it("jogador reconecta após 2 missões e vê histórico correto", () => {
+            const gs = fixedGameState({
+                phase: "team_proposal",
+                currentMission: 2,
+                leaderIndex: 2,
+                missionResults: ["success", "fail", "pending", "pending", "pending"],
+                missionHistory: [
+                    { missionIndex: 0, teamMembers: ["Alice", "Bob"], successCount: 2, failCount: 0, result: "success" },
+                    { missionIndex: 1, teamMembers: ["Alice", "Dave"], successCount: 1, failCount: 1, result: "fail" },
+                ],
+            });
+
+            const syncEvent: AvalonGameEvent = {
+                type: "state_sync",
+                targetPlayer: "Dave",
+                state: {
+                    ...gs,
+                    players: gs.players.map((p) => ({ name: p.name })),
+                },
+                role: "assassin",
+                loyalty: "evil",
+                visiblePlayers: getVisiblePlayers("Dave", gs.players),
+            };
+
+            const state = applyEventToLocalState(INITIAL_LOCAL_STATE, syncEvent, "Dave");
+
+            expect(state.phase).toBe("team_proposal");
+            expect(state.currentMission).toBe(2);
+            expect(state.missionResults).toEqual(["success", "fail", "pending", "pending", "pending"]);
+            expect(state.missionHistory).toHaveLength(2);
+            expect(state.myRole).toBe("assassin");
+            expect(state.isAssassin).toBe(true);
+            expect(state.leaderName).toBe("Carol");
+
+            const evilVisible = state.visiblePlayers.filter((p) => p.appearsAs === "evil");
+            expect(evilVisible).toHaveLength(1);
+            expect(evilVisible[0].name).toBe("Eve");
+        });
+    });
 });
