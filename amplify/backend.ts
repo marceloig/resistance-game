@@ -28,7 +28,8 @@ const eventsStack = backend.createStack("appsync-events");
  * - updatedAt: timestamp ISO 8601
  */
 const roomsTable = new Table(eventsStack, "GameRoomsTable", {
-    tableName: "game-rooms",
+    // tableName omitido: CloudFormation gera um nome único por stack/ambiente,
+    // evitando conflito entre sandbox e deploy de produção.
     partitionKey: { name: "roomCode", type: AttributeType.STRING },
     billingMode: BillingMode.PAY_PER_REQUEST,
     removalPolicy: RemovalPolicy.DESTROY,

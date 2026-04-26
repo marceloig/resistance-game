@@ -11,8 +11,6 @@
 import * as ddb from '@aws-appsync/utils/dynamodb'
 import { util, runtime } from '@aws-appsync/utils'
 
-const TABLE = 'game-rooms'
-
 export const onPublish = {
     request(ctx) {
         const event = ctx.events[0]
