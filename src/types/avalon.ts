@@ -115,7 +115,9 @@ export type AvalonGameEvent =
     | { type: "continue_after_mission"; newLeader: string; newMission: number }
     | { type: "assassin_phase_started" }
     | { type: "assassin_choice"; target: string }
-    | { type: "game_over"; winner: Loyalty; reason: string };
+    | { type: "game_over"; winner: Loyalty; reason: string }
+    | { type: "state_sync"; targetPlayer: string; state: AvalonGameState; role: AvalonRole; loyalty: Loyalty; visiblePlayers: VisiblePlayerInfo[] }
+    | { type: "state_persist"; state: AvalonGameState };
 
 /** Informação visível sobre outro jogador (baseada no papel do observador). */
 export interface VisiblePlayerInfo {

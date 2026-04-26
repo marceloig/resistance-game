@@ -11,6 +11,7 @@ import { MIN_PLAYERS, MAX_PLAYERS, OPTIONAL_ROLES, type OptionalRole } from "../
 interface WaitingRoomProps {
     players: string[];
     isHost: boolean;
+    hostName: string | null;
     onStartGame: (enabledRoles: Set<OptionalRole>) => void;
 }
 
@@ -24,7 +25,7 @@ interface WaitingRoomProps {
  * <WaitingRoom players={["Alice", "Bob"]} isHost={true} onStartGame={start} />
  * ```
  */
-export function WaitingRoom({ players, isHost, onStartGame }: WaitingRoomProps) {
+export function WaitingRoom({ players, isHost, hostName, onStartGame }: WaitingRoomProps) {
     const canStart = players.length >= MIN_PLAYERS && players.length <= MAX_PLAYERS;
     const [enabledRoles, setEnabledRoles] = useState<Set<OptionalRole>>(new Set());
 
@@ -73,7 +74,7 @@ export function WaitingRoom({ players, isHost, onStartGame }: WaitingRoomProps) 
                             <Box key={idx} variant="p">
                                 <Badge color="blue">{idx + 1}</Badge>{" "}
                                 {name}
-                                {idx === 0 && (
+                                {name === hostName && (
                                     <Box variant="span" color="text-body-secondary"> (host)</Box>
                                 )}
                             </Box>

@@ -4,7 +4,9 @@
  * onPublish: intercepta eventos publicados no canal para:
  * - Criar/atualizar o estado da sala no DynamoDB
  * - Bloquear novos jogadores quando o jogo está ativo
- * - Registrar jogadores na sala
+ * - Permitir reconexão de jogadores conhecidos (incluindo host)
+ * - Persistir estado autoritativo do jogo para recuperação do host
+ * - Rastrear jogadores conectados na sala de espera
  *
  * Usa o runtime JavaScript do AppSync (@aws-appsync/utils).
  */
@@ -19,31 +21,57 @@ export const onPublish = {
         const payload = event.payload
         if (!payload) return runtime.earlyReturn(ctx.events)
 
-        // Extrai o código da sala do caminho do canal (default/game-XXXXX)
-        const channelPath = ctx.info.channel.path
-        const segments = channelPath.split('/')
-        const channelName = segments[segments.length - 1] || ''
-        const roomCode = channelName.startsWith('game-')
-            ? channelName.substring(5)
-            : channelName
+        const roomCode = extractRoomCode(ctx.info.channel.path)
 
-        // Evento de sistema: player_joined — verifica se a sala está bloqueada
+        // Evento de sistema: player_joined
         if (payload.type === 'player_joined') {
+            if (payload.isHost) {
+                // Host criando a sala — salva registro inicial no DynamoDB
+                return ddb.put({
+                    key: { roomCode },
+                    item: {
+                        roomCode,
+                        status: 'waiting',
+                        hostName: payload.playerName,
+                        players: [],
+                        updatedAt: util.time.nowISO8601(),
+                    },
+                })
+            }
+            // Jogador comum — busca a sala para verificar se está bloqueada
             return ddb.get({ key: { roomCode } })
         }
 
-        // Evento de jogo: game_started — marca a sala como ativa
+        // Evento de sistema: player_left — frontend trata via eventos.
+        // A lista no DynamoDB é corrigida no game_started.
+        if (payload.type === 'player_left') {
+            return runtime.earlyReturn(ctx.events)
+        }
+
+        // Evento de jogo: game_started — marca sala como ativa
         if (payload.gameEvent && payload.gameEvent.type === 'game_started') {
-            const players = payload.gameEvent.state
-                ? payload.gameEvent.state.players.map((p) => p.name)
+            const gameState = payload.gameEvent.state || null
+            const players = gameState
+                ? gameState.players.map((p) => p.name)
                 : []
-            return ddb.put({
+            return ddb.update({
                 key: { roomCode },
-                item: {
-                    roomCode,
-                    status: 'active',
-                    players,
-                    updatedAt: util.time.nowISO8601(),
+                update: {
+                    status: { value: 'active' },
+                    players: { value: players },
+                    updatedAt: { value: util.time.nowISO8601() },
+                },
+            })
+        }
+
+        // Evento de jogo: state_persist — host persiste estado autoritativo completo
+        if (payload.gameEvent && payload.gameEvent.type === 'state_persist') {
+            const gameState = payload.gameEvent.state || null
+            return ddb.update({
+                key: { roomCode },
+                update: {
+                    gameState: { value: gameState },
+                    updatedAt: { value: util.time.nowISO8601() },
                 },
             })
         }
@@ -54,6 +82,7 @@ export const onPublish = {
                 key: { roomCode },
                 update: {
                     status: { value: 'finished' },
+                    gameState: { value: null },
                     updatedAt: { value: util.time.nowISO8601() },
                 },
             })
@@ -69,25 +98,79 @@ export const onPublish = {
 
         const payload = event.payload
 
-        // Resposta para player_joined: verifica o status da sala
+        // state_persist é interno — não retransmite para os clientes
+        if (payload && payload.gameEvent && payload.gameEvent.type === 'state_persist') {
+            return ctx.events.map((e) => ({
+                ...e,
+                payload: { gameEvent: { type: 'state_persisted' } },
+            }))
+        }
+
+        // Resposta para player_joined
         if (payload && payload.type === 'player_joined') {
+            // Host criando a sala — DynamoDB put já executou, passa o evento adiante
+            if (payload.isHost) {
+                return ctx.events
+            }
+
             const room = ctx.result
-            // Se a sala existe e está ativa, bloqueia o jogador
+
+            // Sala ativa — reconexão ou bloqueio
             if (room && room.status === 'active') {
-                // Substitui o evento por um room_locked direcionado ao jogador
-                return ctx.events.map((e) => ({
-                    ...e,
-                    payload: {
-                        type: 'room_locked',
-                        playerName: e.payload.playerName,
-                        roomCode: e.payload.roomCode,
-                        timestamp: e.payload.timestamp,
-                    },
-                }))
+                return handleActiveRoomJoin(ctx, room)
             }
         }
 
         // Para todos os outros casos, retransmite os eventos normalmente
         return ctx.events
     },
+}
+
+/**
+ * Trata a tentativa de join em uma sala ativa.
+ * Jogadores conhecidos reconectam (host recebe estado persistido).
+ * Jogadores desconhecidos são bloqueados.
+ */
+function handleActiveRoomJoin(ctx, room) {
+    const payload = ctx.events[0].payload
+    const playerName = payload.playerName
+    const isKnownPlayer = room.players && room.players.includes(playerName)
+
+    if (!isKnownPlayer) {
+        return ctx.events.map((e) => ({
+            ...e,
+            payload: {
+                type: 'room_locked',
+                playerName: e.payload.playerName,
+                roomCode: e.payload.roomCode,
+                timestamp: e.payload.timestamp,
+            },
+        }))
+    }
+
+    // Jogador reconhecido — permite reconexão, inclui flag de host e estado persistido
+    // NOTA: gameState inclui papéis de todos os jogadores. Embora seja broadcast no canal,
+    // cada cliente extrai apenas o próprio papel. Em um jogo entre amigos, o risco de
+    // inspeção via dev tools é aceitável (mesmo modelo de segurança do state_sync).
+    const isHost = room.hostName === playerName
+    return ctx.events.map((e) => ({
+        ...e,
+        payload: {
+            type: 'player_reconnected',
+            playerName: e.payload.playerName,
+            roomCode: e.payload.roomCode,
+            timestamp: e.payload.timestamp,
+            isHost,
+            gameState: room.gameState || null,
+        },
+    }))
+}
+
+/** Extrai o código da sala do caminho do canal (default/game-XXXXX). */
+function extractRoomCode(channelPath) {
+    const segments = channelPath.split('/')
+    const channelName = segments[segments.length - 1] || ''
+    return channelName.startsWith('game-')
+        ? channelName.substring(5)
+        : channelName
 }

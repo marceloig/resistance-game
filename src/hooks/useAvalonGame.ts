@@ -107,6 +107,12 @@ export function useAvalonGame(
         [channelName, publish],
     );
 
+    /** Host persiste o estado autoritativo no DynamoDB para recuperação após reconexão. */
+    const persistHostState = useCallback(async () => {
+        if (!gameStateRef.current) return;
+        await publishGameEvent({ type: "state_persist", state: gameStateRef.current });
+    }, [publishGameEvent]);
+
     /** Host inicia o jogo com os jogadores atuais. */
     const startGame = useCallback(
         async (playerNames: string[], enabledRoles: Set<OptionalRole> = new Set()) => {
@@ -127,6 +133,9 @@ export function useAvalonGame(
                     visiblePlayers: visible,
                 });
             }
+
+            // Persiste estado completo (com papéis) no DynamoDB para recuperação do host
+            await publishGameEvent({ type: "state_persist", state });
         },
         [isHost, publishGameEvent],
     );
@@ -136,7 +145,8 @@ export function useAvalonGame(
         if (!isHost || !gameStateRef.current) return;
         gameStateRef.current.phase = "team_proposal";
         await publishGameEvent({ type: "role_reveal_complete" });
-    }, [isHost, publishGameEvent]);
+        await persistHostState();
+    }, [isHost, publishGameEvent, persistHostState]);
 
     /** Jogador notifica que viu seu papel. */
     const revealRole = useCallback(async () => {
@@ -210,6 +220,7 @@ export function useAvalonGame(
         if (shouldStartAssassinPhase(gs.missionResults, gs.players)) {
             gs.phase = "assassin_phase";
             await publishGameEvent({ type: "assassin_phase_started" });
+            await persistHostState();
             return;
         }
 
@@ -229,7 +240,8 @@ export function useAvalonGame(
             newLeader: gs.players[gs.leaderIndex].name,
             newMission: gs.currentMission,
         });
-    }, [isHost, publishGameEvent]);
+        await persistHostState();
+    }, [isHost, publishGameEvent, persistHostState]);
 
     /** Assassino escolhe o alvo (tentativa de identificar Merlin). */
     const chooseAssassinTarget = useCallback(
@@ -237,6 +249,32 @@ export function useAvalonGame(
             await publishGameEvent({ type: "assassin_choice", target });
         },
         [publishGameEvent],
+    );
+
+    /**
+     * Host envia o estado completo do jogo para um jogador que reconectou.
+     * Inclui o papel, lealdade e jogadores visíveis específicos daquele jogador.
+     */
+    const sendStateSync = useCallback(
+        async (targetPlayer: string) => {
+            if (!isHost) return;
+            const gs = gameStateRef.current;
+            if (!gs) return;
+
+            const player = gs.players.find((p) => p.name === targetPlayer);
+            if (!player?.role || !player.loyalty) return;
+
+            const visible = getVisiblePlayers(targetPlayer, gs.players);
+            await publishGameEvent({
+                type: "state_sync",
+                targetPlayer,
+                state: stripRoles(gs),
+                role: player.role,
+                loyalty: player.loyalty,
+                visiblePlayers: visible,
+            });
+        },
+        [isHost, publishGameEvent],
     );
 
     /** Processa um evento de jogo recebido pelo canal. */
@@ -280,8 +318,10 @@ export function useAvalonGame(
                             newLeader: gs.players[gs.leaderIndex].name,
                             newMission: gs.currentMission,
                         });
+                        persistHostState();
                     } else {
                         gs.phase = "team_vote";
+                        persistHostState();
                     }
                     break;
 
@@ -318,7 +358,7 @@ export function useAvalonGame(
                     break;
             }
         },
-        [publishGameEvent],
+        [publishGameEvent, persistHostState],
     );
 
     /** Host resolve a votação de equipe e publica o resultado. */
@@ -345,8 +385,9 @@ export function useAvalonGame(
                 newLeader: gs.players[gs.leaderIndex].name,
                 newMission: gs.currentMission,
             });
+            persistHostState();
         },
-        [publishGameEvent],
+        [publishGameEvent, persistHostState],
     );
 
     /** Host resolve a missão e publica o resultado. */
@@ -376,14 +417,55 @@ export function useAvalonGame(
                 newLeader: nextLeaderName,
                 newMission: nextMissionIdx,
             });
+            persistHostState();
         },
-        [publishGameEvent],
+        [publishGameEvent, persistHostState],
     );
 
     const resetGame = useCallback(() => {
         gameStateRef.current = null;
         setLocalState(INITIAL_LOCAL_STATE);
     }, []);
+
+    /**
+     * Restaura o estado autoritativo do host a partir do estado persistido no DynamoDB.
+     * Chamado quando o host reconecta e recebe o gameState via player_reconnected.
+     */
+    const restoreHostState = useCallback((persistedState: AvalonGameState) => {
+        gameStateRef.current = persistedState;
+
+        // Atualiza o estado local do host com base no estado restaurado
+        const player = persistedState.players.find((p) => p.name === myName);
+        if (!player?.role || !player.loyalty) return;
+
+        const visible = getVisiblePlayers(myName, persistedState.players);
+        const leaderName = persistedState.players[persistedState.leaderIndex]?.name ?? null;
+
+        setLocalState({
+            ...INITIAL_LOCAL_STATE,
+            phase: persistedState.phase,
+            players: persistedState.players.map((p) => p.name),
+            myRole: player.role,
+            myLoyalty: player.loyalty,
+            visiblePlayers: visible,
+            isAssassin: player.role === "assassin",
+            leaderName,
+            currentMission: persistedState.currentMission,
+            rejectedProposals: persistedState.rejectedProposals,
+            proposedTeam: persistedState.proposedTeam,
+            missionResults: persistedState.missionResults,
+            missionHistory: persistedState.missionHistory,
+            assassinTarget: persistedState.assassinTarget,
+            winner: persistedState.winner,
+            isLeader: leaderName === myName,
+            isOnTeam: persistedState.proposedTeam.includes(myName),
+            requiredTeamSize: persistedState.currentMission < 5
+                ? getTeamSize(persistedState.players.length, persistedState.currentMission)
+                : 2,
+            hasVoted: false,
+            voteCount: 0,
+        });
+    }, [myName]);
 
     return {
         localState,
@@ -396,6 +478,8 @@ export function useAvalonGame(
         chooseAssassinTarget,
         continueAfterMission,
         handleGameEvent,
+        sendStateSync,
+        restoreHostState,
         resetGame,
     };
 }
@@ -522,6 +606,42 @@ export function applyEventToLocalState(
 
         case "game_over":
             return { ...prev, phase: "game_over", winner: event.winner, winReason: event.reason };
+
+        case "state_sync": {
+            // Apenas o jogador alvo processa o state_sync
+            if (event.targetPlayer !== myName) return prev;
+            const gs = event.state;
+            const leaderName = gs.players[gs.leaderIndex]?.name ?? null;
+            return {
+                ...INITIAL_LOCAL_STATE,
+                phase: gs.phase,
+                players: gs.players.map((p) => p.name),
+                myRole: event.role,
+                myLoyalty: event.loyalty,
+                visiblePlayers: event.visiblePlayers,
+                isAssassin: event.role === "assassin",
+                leaderName,
+                currentMission: gs.currentMission,
+                rejectedProposals: gs.rejectedProposals,
+                proposedTeam: gs.proposedTeam,
+                missionResults: gs.missionResults,
+                missionHistory: gs.missionHistory,
+                assassinTarget: gs.assassinTarget,
+                winner: gs.winner,
+                isLeader: leaderName === myName,
+                isOnTeam: gs.proposedTeam.includes(myName),
+                requiredTeamSize: gs.currentMission < 5
+                    ? getTeamSize(gs.players.length, gs.currentMission)
+                    : prev.requiredTeamSize,
+                // Reconexão: jogador já votou se a fase avançou além do voto
+                hasVoted: false,
+                voteCount: 0,
+            };
+        }
+
+        // state_persist é interno — não afeta o estado local dos jogadores
+        case "state_persist":
+            return prev;
 
         default:
             return prev;

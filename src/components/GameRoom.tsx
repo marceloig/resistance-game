@@ -16,6 +16,7 @@ interface GameRoomProps {
     roomCode: string;
     playerName: string;
     isHost: boolean;
+    hostName: string | null;
     connectionStatus: ConnectionStatus;
     connectedPlayers: string[];
     auditLog: AuditLogEntry[];
@@ -35,6 +36,7 @@ export function GameRoom({
     roomCode,
     playerName,
     isHost,
+    hostName,
     connectionStatus,
     connectedPlayers,
     auditLog,
@@ -57,6 +59,7 @@ export function GameRoom({
                 <WaitingRoom
                     players={connectedPlayers}
                     isHost={isHost}
+                    hostName={hostName}
                     onStartGame={(enabledRoles: Set<OptionalRole>) => avalon.startGame(connectedPlayers, enabledRoles)}
                 />
             )}

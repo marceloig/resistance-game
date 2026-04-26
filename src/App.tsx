@@ -14,7 +14,7 @@ export default function App() {
     const [howToPlayVisible, setHowToPlayVisible] = useState(false);
 
     const {
-        room, roomLocked, auditLog, connectedPlayers,
+        room, roomLocked, hostName, auditLog, connectedPlayers,
         createRoom, joinRoom, leaveRoom,
         connection, avalon,
     } = useGameRoom();
@@ -92,6 +92,7 @@ export default function App() {
                                 roomCode={room.roomCode!}
                                 playerName={room.playerName!}
                                 isHost={room.isHost}
+                                hostName={hostName}
                                 connectionStatus={connection.status}
                                 connectedPlayers={connectedPlayers}
                                 auditLog={auditLog}
