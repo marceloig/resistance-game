@@ -1,13 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useEventsConnection, type EventPayload } from "./useEventsConnection";
 import { useAvalonGame } from "./useAvalonGame";
+import { beaconPublish } from "./useBeaconPublish";
 import type { AvalonGameEvent, AvalonGameState } from "../types/avalon";
 import { getVisiblePlayers } from "../game/avalonEngine";
 
 export type RoomPhase = "lobby" | "connected";
 
 /** Tipos de eventos do sistema de sala. */
-export type RoomEventType = "player_joined" | "player_left" | "room_locked" | "player_reconnected" | "room_state";
+export type RoomEventType = "player_joined" | "player_left" | "room_locked" | "player_reconnected" | "room_state" | "room_closed";
 
 /** Evento de sistema publicado no canal (join/leave/reconnect). */
 export interface RoomSystemEvent {
@@ -71,7 +72,7 @@ function isSystemEvent(payload: unknown): payload is { event: RoomSystemEvent } 
     const evt = outer.event as Record<string, unknown>;
     return evt.type === "player_joined" || evt.type === "player_left"
         || evt.type === "room_locked" || evt.type === "player_reconnected"
-        || evt.type === "room_state";
+        || evt.type === "room_state" || evt.type === "room_closed";
 }
 
 /**
@@ -185,6 +186,9 @@ export function useGameRoom() {
     // Indica se a sala está bloqueada (jogo em andamento)
     const [roomLocked, setRoomLocked] = useState(false);
 
+    // Indica se a sala foi fechada pelo host
+    const [roomClosed, setRoomClosed] = useState(false);
+
     // Garante que o player_joined é publicado apenas uma vez por sessão de sala
     const hasPublishedJoinRef = useRef(false);
 
@@ -211,6 +215,11 @@ export function useGameRoom() {
             return;
         }
 
+        if (sysEvt.type === "room_closed") {
+            handleRoomClosed();
+            return;
+        }
+
         if (sysEvt.type === "player_reconnected") {
             handlePlayerReconnected(sysEvt, rawEvent);
             return;
@@ -232,6 +241,12 @@ export function useGameRoom() {
         if (currentName && sysEvt.playerName === currentName) {
             setRoomLocked(true);
         }
+    }
+
+    /** Host saiu — sala fechada. Non-host players são desconectados. */
+    function handleRoomClosed(): void {
+        if (roomRef.current.isHost) return;
+        setRoomClosed(true);
     }
 
     /** Trata reconexão: restaura estado do jogador a partir do DynamoDB. */
@@ -362,6 +377,7 @@ export function useGameRoom() {
     function resetRoomState(): void {
         hasPublishedJoinRef.current = false;
         setRoomLocked(false);
+        setRoomClosed(false);
         setAuditLog([]);
         setConnectedPlayers([]);
         setHostName(null);
@@ -464,10 +480,28 @@ export function useGameRoom() {
         broadcastRoomState();
     }, [connectedPlayers, room.isHost]);
 
-    // Publica player_left ao fechar o navegador ou recarregar a página
+    /**
+     * Publica player_left de forma confiável ao fechar/recarregar o navegador.
+     *
+     * Usa fetch com keepalive (via beaconPublish) em vez de events.post() porque
+     * requisições async normais são canceladas pelo browser durante beforeunload.
+     *
+     * NÃO usa visibilitychange — esse evento dispara ao trocar de aba, o que
+     * causaria saídas falsas. beforeunload é suficiente para desktop; em mobile
+     * (onde beforeunload pode não disparar), o mecanismo de reconexão existente
+     * já trata o cenário de desconexão.
+     *
+     * Quando o host sai, o backend transforma player_left em room_closed,
+     * forçando todos os jogadores a saírem da sala.
+     */
     useEffect(() => {
-        function handleBeforeUnload() {
-            publishPlayerLeft();
+        function handleBeforeUnload(): void {
+            const { playerName, roomCode } = roomRef.current;
+            const channel = channelNameRef.current;
+            if (!playerName || !roomCode || !channel) return;
+
+            const payload = buildSystemPayload("player_left", playerName, roomCode);
+            beaconPublish(channel, payload as unknown as EventPayload);
         }
 
         window.addEventListener("beforeunload", handleBeforeUnload);
@@ -477,6 +511,7 @@ export function useGameRoom() {
     return {
         room,
         roomLocked,
+        roomClosed,
         hostName,
         auditLog,
         connectedPlayers,

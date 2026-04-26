@@ -14,7 +14,7 @@ export default function App() {
     const [howToPlayVisible, setHowToPlayVisible] = useState(false);
 
     const {
-        room, roomLocked, hostName, auditLog, connectedPlayers,
+        room, roomLocked, roomClosed, hostName, auditLog, connectedPlayers,
         createRoom, joinRoom, leaveRoom,
         connection, avalon,
     } = useGameRoom();
@@ -26,6 +26,14 @@ export default function App() {
             return () => clearTimeout(timer);
         }
     }, [roomLocked, room.phase, leaveRoom]);
+
+    // Redireciona ao lobby quando o host fecha a sala
+    useEffect(() => {
+        if (roomClosed && room.phase === "connected") {
+            const timer = setTimeout(() => leaveRoom(), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [roomClosed, room.phase, leaveRoom]);
 
     const statusLabel = room.phase === "connected"
         ? `${room.playerName} | Sala: ${room.roomCode} (${connection.status})`
@@ -81,11 +89,20 @@ export default function App() {
                                         Esta sala já possui um jogo em andamento. Aguarde o término da partida ou entre em outra sala.
                                     </Alert>
                                 )}
+                                {roomClosed && (
+                                    <Alert type="warning" header="Sala encerrada">
+                                        O host encerrou a sala. Crie ou entre em outra sala para jogar.
+                                    </Alert>
+                                )}
                                 <GameLobby onCreateRoom={createRoom} onJoinRoom={joinRoom} />
                             </SpaceBetween>
                         ) : roomLocked ? (
                             <Alert type="warning" header="Jogo em andamento">
                                 Um jogo já está em andamento nesta sala. Você será redirecionado ao lobby...
+                            </Alert>
+                        ) : roomClosed ? (
+                            <Alert type="warning" header="Sala encerrada">
+                                O host saiu da sala. Você será redirecionado ao lobby...
                             </Alert>
                         ) : (
                             <GameRoom

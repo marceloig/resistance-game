@@ -42,10 +42,9 @@ export const onPublish = {
             return ddb.get({ key: { roomCode } })
         }
 
-        // Evento de sistema: player_left — frontend trata via eventos.
-        // A lista no DynamoDB é corrigida no game_started.
+        // Evento de sistema: player_left — verifica se é o host saindo
         if (payload.type === 'player_left') {
-            return runtime.earlyReturn(ctx.events)
+            return ddb.get({ key: { roomCode } })
         }
 
         // Evento de jogo: game_started — marca sala como ativa
@@ -104,6 +103,24 @@ export const onPublish = {
                 ...e,
                 payload: { gameEvent: { type: 'state_persisted' } },
             }))
+        }
+
+        // Resposta para player_left: se o host saiu, transforma em room_closed
+        if (payload && payload.type === 'player_left') {
+            const room = ctx.result
+            if (room && room.hostName === payload.playerName) {
+                return ctx.events.map((e) => ({
+                    ...e,
+                    payload: {
+                        type: 'room_closed',
+                        playerName: e.payload.playerName,
+                        roomCode: e.payload.roomCode,
+                        timestamp: e.payload.timestamp,
+                    },
+                }))
+            }
+            // Non-host saiu — passa o evento normalmente
+            return ctx.events
         }
 
         // Resposta para player_joined
