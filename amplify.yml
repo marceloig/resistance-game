@@ -9,6 +9,9 @@ frontend:
         # npm ci fails due to npm 11 bug with bundled deps (npm/cli#8726).
         # npm install with committed lock file is functionally equivalent.
         - npm install
+        # Stub amplify_outputs.json if missing so tsc doesn't fail.
+        # Amplify Gen 2 replaces it with real config at deploy time.
+        - '[ -f amplify_outputs.json ] || echo "{}" > amplify_outputs.json'
     build:
       commands:
         - npm run build
