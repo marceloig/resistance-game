@@ -27,7 +27,12 @@ export function GameLobby({ onCreateRoom, onJoinRoom }: GameLobbyProps) {
     const [joinCode, setJoinCode] = useState("");
     const [joinError, setJoinError] = useState("");
 
-    /** Valida que o nome foi preenchido. Retorna o nome trimado ou null. */
+    /** Remove caracteres não permitidos (aceita apenas letras, números e espaço). */
+    function sanitizePlayerName(raw: string): string {
+        return raw.replace(/[^a-zA-Z0-9À-ÿ\s]/g, "").slice(0, 50);
+    }
+
+    /** Valida que o nome foi preenchido e contém apenas caracteres permitidos. */
     function validateName(): string | null {
         const trimmed = playerName.trim();
         if (trimmed.length === 0) {
@@ -68,7 +73,7 @@ export function GameLobby({ onCreateRoom, onJoinRoom }: GameLobbyProps) {
                     <Input
                         value={playerName}
                         onChange={({ detail }) => {
-                            setPlayerName(detail.value);
+                            setPlayerName(sanitizePlayerName(detail.value));
                             setNameError("");
                         }}
                         placeholder="Ex: João"
