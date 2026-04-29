@@ -71,10 +71,10 @@ function ObjectiveSection() {
                     <strong>Espiões (mal):</strong> Devem sabotar 3 missões infiltrando equipes e votando falha.
                 </Box>
                 <Box>
-                    Se a Resistência vencer 3 missões e os papéis Comandante + Assassino estiverem
-                    habilitados, os Espiões têm uma última chance: o Assassino pode tentar identificar
-                    o Comandante. Se acertar, os Espiões vencem. Sem esses papéis, 3 missões
-                    bem-sucedidas é vitória direta da Resistência.
+                    Se a Resistência vencer 3 missões é vitoria para a resistencia.
+                    Se os Espiões sabotarem 3 missões é vitoria para os espiões
+                    Se os papéis Comandante + Assassino estiverem habilitados, os Espiões têm uma última chance: o Assassino pode tentar identificar
+                    o Comandante. Se acertar, os Espiões vencem.
                 </Box>
             </SpaceBetween>
         </ExpandableSection>
